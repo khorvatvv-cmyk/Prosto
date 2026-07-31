@@ -1,298 +1,336 @@
-import { ChevronRight, User, Mail, Phone, Lock, LogOut, Building } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  User,
+  Mail,
+  Phone,
+  Save,
+  Building2,
+  FileText,
+  Briefcase,
+  Shield,
+  ChevronRight,
+} from 'lucide-react';
 
-export default function Profile({ onOpenManager, showToast }) {
-  const handleSave = () => showToast('Контактные данные сохранены');
-
+// ------------------------------------------------------------------
+// Вспомогательный блок-секция
+// ------------------------------------------------------------------
+function Section({ icon: Icon, title, children, noIcon }) {
   return (
-    <div style={{ padding: '32px 24px', maxWidth: '720px', margin: '0 auto' }}>
-      {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-ink-muted)', marginBottom: '20px' }}>
-        <span>Главная</span>
-        <ChevronRight size={14} />
-        <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>Профиль</span>
-      </div>
-
-      <h1 style={{ fontSize: '26px', fontWeight: 700, color: 'var(--color-ink)', margin: '0 0 28px 0' }}>Профиль</h1>
-
-      {/* Contact section */}
-      <Section title="Контакт">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <FieldRow icon={User} label="ФИО" defaultValue="Иванова Мария Сергеевна" />
-          <FieldRow icon={Mail} label="Email" defaultValue="maria.ivanova@example.com" />
-          <FieldRow icon={Phone} label="Телефон" defaultValue="+7 (900) 123-45-67" />
-          <div>
-            <button
-              onClick={handleSave}
-              style={{
-                padding: '10px 20px',
-                borderRadius: '10px',
-                border: 'none',
-                background: '#E50071',
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#B0005A')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = '#E50071')}
-            >
-              Сохранить
-            </button>
-          </div>
-        </div>
-      </Section>
-
-      {/* Organization section */}
-      <Section title="Организация">
+    <div
+      style={{
+        padding: '20px 16px',
+        borderBottom: '1px solid var(--color-border)',
+      }}
+    >
+      {!noIcon && (
         <div
           style={{
-            background: 'var(--color-surface)',
-            border: `1px solid var(--color-border)`,
-            borderRadius: '12px',
-            padding: '20px',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '14px',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '14px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                background: 'rgba(229,0,113,0.08)',
-                color: '#E50071',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Building size={20} />
-            </div>
-            <div>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-ink)' }}>ООО «ТоргСервис»</div>
-              <div style={{ fontSize: '13px', color: 'var(--color-ink-muted)' }}>ИНН: 7701234567</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span
-              style={{
-                padding: '4px 10px',
-                borderRadius: '999px',
-                fontSize: '12px',
-                fontWeight: 600,
-                background: 'rgba(229,0,113,0.1)',
-                color: '#E50071',
-              }}
-            >
-              ИТС ПРОФ
-            </span>
-            <span style={{ fontSize: '13px', color: 'var(--color-ink-muted)' }}>
-              Договор №ТС-2024/0156 · до 31.12.2026
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22C55E' }} />
-            <span style={{ fontSize: '13px', color: 'var(--color-ink)' }}>Активен</span>
-          </div>
-        </div>
-      </Section>
-
-      {/* Manager section */}
-      <Section title="Ваш менеджер">
-        <div
-          style={{
-            background: 'var(--color-surface)',
-            border: `1px solid var(--color-border)`,
-            borderRadius: '12px',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div
-              style={{
-                width: '52px',
-                height: '52px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #18181B, #E50071)',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '18px',
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-            >
-              АП
-            </div>
-            <div>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-ink)' }}>Анна Петрова</div>
-              <div style={{ fontSize: '13px', color: 'var(--color-ink-muted)' }}>Персональный менеджер</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <a
-              href="tel:+74951234567"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                border: `1px solid var(--color-border)`,
-                background: 'var(--color-surface)',
-                color: 'var(--color-ink)',
-                fontSize: '13px',
-                fontWeight: 500,
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <Phone size={15} />
-              +7 (495) 123-45-67
-            </a>
-            <a
-              href="mailto:anna.petrova@1bit.ru"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                border: `1px solid var(--color-border)`,
-                background: 'var(--color-surface)',
-                color: 'var(--color-ink)',
-                fontSize: '13px',
-                fontWeight: 500,
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <Mail size={15} />
-              anna.petrova@1bit.ru
-            </a>
-            <button
-              onClick={onOpenManager}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                border: 'none',
-                background: '#E50071',
-                color: '#fff',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Написать
-            </button>
-          </div>
-        </div>
-      </Section>
-
-      {/* Security section */}
-      <Section title="Безопасность">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <button
-            onClick={() => showToast('Ссылка на изменение пароля отправлена на email')}
+          <Icon size={18} color="var(--color-accent)" />
+          <h3
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '14px 18px',
-              borderRadius: '10px',
-              border: `1px solid var(--color-border)`,
-              background: 'var(--color-surface)',
+              margin: 0,
+              fontSize: '16px',
+              fontWeight: 600,
               color: 'var(--color-ink)',
-              fontSize: '14px',
-              fontWeight: 500,
-              cursor: 'pointer',
-              textAlign: 'left',
             }}
           >
-            <Lock size={18} style={{ color: 'var(--color-ink-muted)' }} />
-            Изменить пароль
-          </button>
-          <button
-            onClick={() => showToast('Выполнен выход из всех устройств')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '14px 18px',
-              borderRadius: '10px',
-              border: `1px solid var(--color-border)`,
-              background: 'var(--color-surface)',
-              color: '#DC2626',
-              fontSize: '14px',
-              fontWeight: 500,
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            <LogOut size={18} />
-            Выйти из всех устройств
-          </button>
+            {title}
+          </h3>
         </div>
-      </Section>
+      )}
+      {noIcon && (
+        <h3
+          style={{
+            margin: '0 0 14px',
+            fontSize: '16px',
+            fontWeight: 600,
+            color: 'var(--color-ink)',
+          }}
+        >
+          {title}
+        </h3>
+      )}
+      {children}
     </div>
   );
 }
 
-function Section({ title, children }) {
+// ------------------------------------------------------------------
+// Поле ввода
+// ------------------------------------------------------------------
+function Field({ label, value, onChange, type = 'text' }) {
   return (
-    <section style={{ marginBottom: '32px' }}>
-      <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 12px 0' }}>
-        {title}
-      </h2>
-      {children}
-    </section>
+    <div style={{ marginBottom: '12px' }}>
+      <label
+        style={{
+          display: 'block',
+          fontSize: '12px',
+          fontWeight: 500,
+          color: 'var(--color-ink-muted)',
+          marginBottom: '4px',
+        }}
+      >
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          fontSize: '14px',
+          color: 'var(--color-ink)',
+          backgroundColor: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '10px',
+          outline: 'none',
+          transition: 'border-color 0.15s ease',
+          boxSizing: 'border-box',
+        }}
+        className="focus:border-[var(--color-accent)]"
+      />
+    </div>
   );
 }
 
-function FieldRow({ icon: Icon, label, defaultValue }) {
+// ------------------------------------------------------------------
+// Основной компонент
+// ------------------------------------------------------------------
+export default function Profile({ onOpenManager, showToast }) {
+  const [name, setName] = useState('Иванов Иван Иванович');
+  const [email, setEmail] = useState('ivanov@example.ru');
+  const [phone, setPhone] = useState('+7 (999) 123-45-67');
+
+  const handleSave = () => {
+    showToast?.('Данные сохранены');
+  };
+
   return (
     <div>
-      <label style={{ display: 'block', fontSize: '12px', color: 'var(--color-ink-muted)', marginBottom: '6px' }}>{label}</label>
-      <div style={{ position: 'relative' }}>
-        <Icon
-          size={16}
+      {/* ---------- КОНТАКТ ---------- */}
+      <Section icon={User} title="Контакт">
+        <Field label="ФИО" value={name} onChange={setName} />
+        <Field label="Email" value={email} onChange={setEmail} type="email" />
+        <Field label="Телефон" value={phone} onChange={setPhone} type="tel" />
+
+        <button
+          type="button"
+          onClick={handleSave}
           style={{
-            position: 'absolute',
-            left: '14px',
-            top: '50%',
-            transform: 'translateY(-50%)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginTop: '4px',
+            padding: '10px 20px',
+            fontSize: '14px',
+            fontWeight: 600,
+            color: '#fff',
+            backgroundColor: 'var(--color-accent)',
+            border: 'none',
+            borderRadius: '10px',
+            cursor: 'pointer',
+            transition: 'opacity 0.15s ease',
+          }}
+          className="hover:opacity-90 active:opacity-80"
+        >
+          <Save size={16} />
+          Сохранить
+        </button>
+      </Section>
+
+      {/* ---------- ОРГАНИЗАЦИЯ ---------- */}
+      <Section icon={Building2} title="Организация">
+        <div
+          style={{
+            padding: '16px',
+            borderRadius: '12px',
+            backgroundColor: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              marginBottom: '12px',
+            }}
+          >
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'color-mix(in srgb, var(--color-accent) 10%, transparent)',
+                color: 'var(--color-accent)',
+              }}
+            >
+              <Building2 size={20} />
+            </div>
+            <div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  color: 'var(--color-ink)',
+                }}
+              >
+                ООО «Пример»
+              </p>
+              <p
+                style={{
+                  margin: '2px 0 0',
+                  fontSize: '13px',
+                  color: 'var(--color-ink-muted)',
+                }}
+              >
+                ИНН 7712345678
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              backgroundColor: 'color-mix(in srgb, var(--color-accent) 6%, transparent)',
+            }}
+          >
+            <FileText size={16} color="var(--color-accent)" />
+            <span
+              style={{
+                fontSize: '13px',
+                fontWeight: 500,
+                color: 'var(--color-ink)',
+              }}
+            >
+              Договор ИТС ПРОФ
+            </span>
+            <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--color-ink-muted)' }}>
+              Действует
+            </span>
+          </div>
+        </div>
+      </Section>
+
+      {/* ---------- ВАШ МЕНЕДЖЕР ---------- */}
+      <Section icon={Briefcase} title="Ваш менеджер">
+        <div
+          onClick={onOpenManager}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            padding: '14px 16px',
+            borderRadius: '12px',
+            backgroundColor: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            cursor: 'pointer',
+            transition: 'box-shadow 0.15s ease',
+          }}
+          className="hover:shadow-sm"
+        >
+          {/* Аватар с градиентом */}
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              flexShrink: 0,
+              background:
+                'linear-gradient(135deg, var(--color-accent) 0%, #ff7eb3 50%, #ff758c 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: '18px',
+              fontWeight: 700,
+            }}
+          >
+            ИИ
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '15px',
+                fontWeight: 600,
+                color: 'var(--color-ink)',
+              }}
+            >
+              Иванов Иван Иванович
+            </p>
+            <p
+              style={{
+                margin: '2px 0 4px',
+                fontSize: '13px',
+                color: 'var(--color-ink-muted)',
+              }}
+            >
+              Персональный менеджер
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <a
+                href="tel:+79991234567"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--color-accent)',
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                }}
+              >
+                +7 (999) 123-45-67
+              </a>
+              <a
+                href="mailto:manager@bit.ru"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--color-accent)',
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                }}
+              >
+                manager@bit.ru
+              </a>
+            </div>
+          </div>
+
+          <ChevronRight size={18} color="var(--color-ink-muted)" style={{ flexShrink: 0 }} />
+        </div>
+      </Section>
+
+      {/* ---------- БЕЗОПАСНОСТЬ ---------- */}
+      <Section icon={Shield} title="Безопасность">
+        <p
+          style={{
+            margin: 0,
+            fontSize: '13px',
+            lineHeight: '18px',
             color: 'var(--color-ink-muted)',
           }}
-        />
-        <input
-          type="text"
-          defaultValue={defaultValue}
-          style={{
-            width: '100%',
-            padding: '11px 14px 11px 40px',
-            borderRadius: '10px',
-            border: `1px solid var(--color-border)`,
-            background: 'var(--color-bg)',
-            fontSize: '14px',
-            color: 'var(--color-ink)',
-            outline: 'none',
-            boxSizing: 'border-box',
-            transition: 'border-color 0.15s',
-          }}
-          onFocus={(e) => (e.currentTarget.style.borderColor = '#E50071')}
-          onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--color-border)')}
-        />
-      </div>
+        >
+          Ваши данные защищены. Для смены пароля или настройки двухфакторной
+          аутентификации обратитесь к вашему менеджеру.
+        </p>
+      </Section>
     </div>
   );
 }

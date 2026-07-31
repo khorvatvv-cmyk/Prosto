@@ -1,20 +1,25 @@
-import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, Check, X, Star, Phone, Mail } from 'lucide-react';
+﻿import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Send, CheckCircle2, HelpCircle, Phone } from 'lucide-react';
 
+/* ─── Метки статусов ─── */
 const STATUS_LABELS = {
-  new: 'Новое',
+  new: 'Новый',
   in_progress: 'В работе',
   resolved: 'Решено',
   escalated: 'Эскалация',
 };
 
+/* ─── Цвета статуса ─── */
 const STATUS_COLORS = {
-  new: { bg: 'rgba(229, 0, 113, 0.1)', color: '#E50071' },
-  in_progress: { bg: 'rgba(59, 130, 246, 0.1)', color: '#3B82F6' },
-  resolved: { bg: 'rgba(34, 197, 94, 0.1)', color: '#22C55E' },
-  escalated: { bg: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B' },
+  new:        { bg: 'rgba(230,0,126,0.12)', color: 'var(--bit-accent, #e6007e)' },
+  in_progress: { bg: 'rgba(134,134,139,0.15)', color: 'var(--bit-muted, #86868b)' },
+  resolved:   { bg: 'rgba(52,199,89,0.12)', color: '#34C759' },
+  escalated:  { bg: 'rgba(26,26,31,0.08)', color: 'var(--bit-ink, #1a1a1f)' },
 };
 
+/* ================================================================
+   ChatDetail
+   ================================================================ */
 export default function ChatDetail({
   request,
   onBack,
@@ -23,7 +28,6 @@ export default function ChatDetail({
   onNavigate,
   showToast,
 }) {
-  const [rating, setRating] = useState(request?.rating || 0);
   const [composerText, setComposerText] = useState('');
   const [l0Loading, setL0Loading] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -31,15 +35,26 @@ export default function ChatDetail({
   const l0TimerRef = useRef(null);
 
   const status = request?.status || 'new';
-  const channel = request?.channel || 'L0';
+  const channel = request?.channel || 'auto';
   const isResolved = status === 'resolved';
-  const isEscalated = status === 'escalated' || channel === 'L1';
+  const isSpecialist = channel === 'specialist' || status === 'escalated';
+  const showL0Actions =
+    channel === 'auto' &&
+    !isResolved &&
+    !isSpecialist &&
+    messages.length > 0 &&
+    messages[messages.length - 1]?.type === 'agent' &&
+    !messages.some((m) => m.type === 'system');
 
+  const statusStyle = STATUS_COLORS[status] || STATUS_COLORS.new;
+
+  /* ─── Инициализация сообщений ─── */
   useEffect(() => {
     const initialMessages = [];
-    if (channel === 'L0' && request?.l0Response) {
+
+    if (channel === 'auto' && request?.l0Response) {
       initialMessages.push({ type: 'agent', text: request.l0Response });
-    } else if (channel === 'L0' && !request?.l0Response) {
+    } else if (channel === 'auto' && !request?.l0Response) {
       initialMessages.push({ type: 'l0-loading' });
       setL0Loading(true);
       l0TimerRef.current = setTimeout(() => {
@@ -49,22 +64,31 @@ export default function ChatDetail({
           if (idx !== -1) {
             next[idx] = {
               type: 'agent',
-              text: 'Здравствуйте! Я — агент L0. Подскажите, в чём именно заключается вопрос? Уточните, пожалуйста, версию платформы 1С и конфигурацию.',
+              text: 'Здравствуйте! Я — автоответчик «просто.». Уточните, пожалуйста, версию 1С и конфигурацию — в чём именно проблема?',
             };
           }
           return next;
         });
         setL0Loading(false);
-      }, 1200);
+      }, 1800);
     }
-    if (isEscalated) {
-      initialMessages.push({ type: 'system', text: 'Передано L1 — специалист подключится к диалогу' });
+
+    if (isSpecialist) {
       initialMessages.push({
-        type: 'agent-l1',
-        text: 'Добрый день! Меня зовут Анна, я специалист группы поддержки L1. Изучаю ваше обращение, уточните, пожалуйста, когда проблема впервые проявилась?',
+        type: 'system',
+        text: 'Подключаем специалиста. Повторно описывать не нужно.',
+      });
+      initialMessages.push({
+        type: 'agent-specialist',
+        text: 'Добрый день! Меня зовут Анна, я специалист поддержки. Изучаю ваш вопрос. Уточните, когда проблема впервые появилась?',
       });
     }
-    setMessages(initialMessages.length ? initialMessages : [{ type: 'agent', text: 'Здравствуйте! Чем могу помочь?' }]);
+
+    setMessages(
+      initialMessages.length
+        ? initialMessages
+        : [{ type: 'agent', text: 'Здравствуйте! Чем могу помочь?' }]
+    );
 
     return () => {
       if (l0TimerRef.current) clearTimeout(l0TimerRef.current);
@@ -76,45 +100,60 @@ export default function ChatDetail({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  /* ─── «Да, всё работает» ─── */
   const handleHelpful = () => {
-    setRating(5);
-    onUpdateRequest(request.id, { status: 'resolved', rating: 5 });
-    setMessages((prev) => [...prev, { type: 'system', text: 'Обращение закрыто. Спасибо за оценку!' }]);
-    showToast('Спасибо за обратную связь!');
+    onUpdateRequest(request.id, { status: 'resolved' });
+    setMessages((prev) => [
+      ...prev,
+      { type: 'system', text: 'Вопрос решён. Спасибо за обратную связь!' },
+    ]);
+    showToast('Вопрос решён');
   };
 
+  /* ─── «Нет, нужна помощь» ─── */
   const handleNotHelpful = () => {
     setMessages((prev) => [
       ...prev,
-      { type: 'system', text: 'Передано L1 — специалист подключится к диалогу' },
       {
-        type: 'agent-l1',
-        text: 'Здравствуйте! Я специалист группы L1. Изучаю детали обращения, уточните, когда проблема возникла?',
+        type: 'system',
+        text: 'Подключаем специалиста. Повторно описывать не нужно.',
+      },
+      {
+        type: 'agent-specialist',
+        text: 'Здравствуйте! Я специалист поддержки. Изучаю детали вопроса. Уточните, когда проблема возникла?',
       },
     ]);
-    onUpdateRequest(request.id, { status: 'escalated', channel: 'L1' });
-    showToast('Передано специалисту L1');
+    onUpdateRequest(request.id, { status: 'escalated', channel: 'specialist' });
+    showToast('Передано специалисту');
   };
 
   const handleSendComposer = () => {
     if (!composerText.trim()) return;
-    setMessages((prev) => [...prev, { type: 'user', text: composerText.trim() }]);
+    setMessages((prev) => [
+      ...prev,
+      { type: 'user', text: composerText.trim() },
+    ]);
     setComposerText('');
   };
 
-  const statusStyle = STATUS_COLORS[status] || STATUS_COLORS.new;
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      {/* Top bar */}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: 0,
+      }}
+    >
+      {/* ─── Верхняя панель ─── */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '12px',
+          gap: 12,
           padding: '12px 20px',
-          borderBottom: `1px solid var(--color-border)`,
-          background: 'var(--color-surface)',
+          borderBottom: '1px solid var(--bit-border, #e5e5e7)',
+          background: 'var(--bit-surface, #fff)',
           flexShrink: 0,
         }}
       >
@@ -123,84 +162,75 @@ export default function ChatDetail({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
+            gap: 6,
             background: 'none',
             border: 'none',
-            color: 'var(--color-ink)',
-            fontSize: '14px',
+            color: 'var(--bit-ink, #1a1a1f)',
+            fontSize: 14,
             fontWeight: 500,
             cursor: 'pointer',
-            padding: '6px 8px',
-            borderRadius: '8px',
+            padding: '6px 10px',
+            borderRadius: 8,
+            transition: 'background .15s',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--bit-tab-bg, #ececee)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'none';
+          }}
         >
           <ArrowLeft size={16} />
-          Назад к списку
+          Назад к вопросам
         </button>
       </div>
 
-      {/* Layout */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        {/* Meta panel */}
+        {/* ═══ Мета-панель ═══ */}
         <aside
           className="chat-meta-panel"
           style={{
-            width: '260px',
+            width: 260,
             flexShrink: 0,
-            borderRight: `1px solid var(--color-border)`,
-            background: 'var(--color-surface)',
+            borderRight: '1px solid var(--bit-border, #e5e5e7)',
+            background: 'var(--bit-surface, #fff)',
             padding: '20px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px',
+            gap: 16,
             overflowY: 'auto',
           }}
         >
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+            <div style={{ fontSize: 11, color: 'var(--bit-muted, #86868b)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>
               Статус
             </div>
             <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: 6,
                 padding: '4px 10px',
                 borderRadius: '999px',
-                fontSize: '12px',
+                fontSize: 12,
                 fontWeight: 600,
                 background: statusStyle.bg,
                 color: statusStyle.color,
               }}
             >
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusStyle.color }} />
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusStyle.color }} />
               {STATUS_LABELS[status] || status}
             </span>
           </div>
 
-          <MetaField label="Канал" value={channel === 'L0' ? 'L0 / Автоматический' : 'L1 / Специалист'} />
+          <MetaField
+            label="Канал"
+            value={channel === 'auto' ? 'Автоматический ответ' : 'Специалист'}
+          />
           <MetaField label="Дата создания" value={request?.date || '—'} />
           <MetaField label="Тема" value={request?.title || '—'} />
 
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-              Оценка
-            </div>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <Star
-                  key={n}
-                  size={16}
-                  fill={n <= rating ? '#E50071' : 'none'}
-                  color={n <= rating ? '#E50071' : 'var(--color-border)'}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 'auto', paddingTop: '16px' }}>
+          <div style={{ marginTop: 'auto', paddingTop: 16 }}>
             <button
               onClick={onOpenManager}
               style={{
@@ -208,15 +238,24 @@ export default function ChatDetail({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px',
+                gap: 8,
                 padding: '10px 14px',
-                borderRadius: '10px',
-                border: `1px solid var(--color-border)`,
-                background: 'var(--color-surface)',
-                color: 'var(--color-ink)',
-                fontSize: '13px',
+                borderRadius: 10,
+                border: '1px solid var(--bit-border, #e5e5e7)',
+                background: 'var(--bit-surface, #fff)',
+                color: 'var(--bit-ink, #1a1a1f)',
+                fontSize: 13,
                 fontWeight: 500,
                 cursor: 'pointer',
+                transition: 'all .15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bit-tab-bg, #ececee)';
+                e.currentTarget.style.borderColor = 'var(--bit-accent, #e6007e)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bit-surface, #fff)';
+                e.currentTarget.style.borderColor = 'var(--bit-border, #e5e5e7)';
               }}
             >
               <Phone size={15} />
@@ -225,65 +264,63 @@ export default function ChatDetail({
           </div>
         </aside>
 
-        {/* Chat area */}
-        <section style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--color-bg)' }}>
-          {/* Chat header */}
+        {/* ═══ Область чата ═══ */}
+        <section
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--bit-bg, #f7f7f8)',
+          }}
+        >
+          {/* Шапка */}
           <div
             style={{
               padding: '14px 24px',
-              borderBottom: `1px solid var(--color-border)`,
-              background: 'var(--color-surface)',
+              borderBottom: '1px solid var(--bit-border, #e5e5e7)',
+              background: 'var(--bit-surface, #fff)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '12px',
+              gap: 12,
               flexShrink: 0,
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {request?.title || 'Обращение'}
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--bit-ink, #1a1a1f)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {request?.title || 'Вопрос'}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--color-ink-muted)', marginTop: '2px' }}>
-                {channel === 'L0' ? 'L0 / Автоматический агент' : 'L1 / Специалист поддержки'}
+              <div style={{ fontSize: 12, color: 'var(--bit-muted, #86868b)', marginTop: 2 }}>
+                {channel === 'auto' ? 'Автоматический ответ' : 'Специалист поддержки'}
               </div>
             </div>
             <span
               style={{
                 padding: '4px 10px',
                 borderRadius: '999px',
-                fontSize: '12px',
+                fontSize: 12,
                 fontWeight: 600,
-                background: channel === 'L0' ? 'rgba(229,0,113,0.08)' : 'rgba(59,130,246,0.08)',
-                color: channel === 'L0' ? '#E50071' : '#3B82F6',
+                background: channel === 'auto' ? 'rgba(230,0,126,0.1)' : 'rgba(26,26,31,0.08)',
+                color: channel === 'auto' ? 'var(--bit-accent, #e6007e)' : 'var(--bit-ink, #1a1a1f)',
               }}
             >
-              {channel}
+              {channel === 'auto' ? 'Авто' : 'Специалист'}
             </span>
           </div>
 
-          {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Сообщения */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {messages.map((msg, i) => {
               if (msg.type === 'l0-loading') {
                 return (
-                  <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                    <AgentAvatar />
-                    <div
-                      style={{
-                        background: 'var(--color-surface)',
-                        border: `1px solid var(--color-border)`,
-                        borderRadius: '0 12px 12px 12px',
-                        padding: '14px 16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                      }}
-                    >
-                      <span className="l0-pulse-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#E50071' }} />
-                      <span className="l0-pulse-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#E50071', animationDelay: '0.2s' }} />
-                      <span className="l0-pulse-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#E50071', animationDelay: '0.4s' }} />
-                      <span style={{ fontSize: '13px', color: 'var(--color-ink-muted)', marginLeft: '4px' }}>Агент L0 формирует ответ…</span>
+                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <AgentAvatar variant="auto" />
+                    <div style={{ background: 'var(--bit-surface, #fff)', border: '1px solid var(--bit-border, #e5e5e7)', borderRadius: '0 12px 12px 12px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className="l0-pulse-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bit-accent, #e6007e)' }} />
+                      <span className="l0-pulse-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bit-accent, #e6007e)', animationDelay: '0.2s' }} />
+                      <span className="l0-pulse-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bit-accent, #e6007e)', animationDelay: '0.4s' }} />
+                      <span style={{ fontSize: 13, color: 'var(--bit-muted, #86868b)', marginLeft: 4 }}>Ищем решение…</span>
                     </div>
                   </div>
                 );
@@ -291,79 +328,19 @@ export default function ChatDetail({
               if (msg.type === 'system') {
                 return (
                   <div key={i} style={{ display: 'flex', justifyContent: 'center' }}>
-                    <span
-                      style={{
-                        fontSize: '12px',
-                        color: 'var(--color-ink-muted)',
-                        background: 'var(--color-surface-2)',
-                        padding: '6px 14px',
-                        borderRadius: '999px',
-                      }}
-                    >
+                    <span style={{ fontSize: 12, color: 'var(--bit-muted, #86868b)', background: 'var(--bit-tab-bg, #ececee)', padding: '6px 14px', borderRadius: '999px' }}>
                       {msg.text}
                     </span>
                   </div>
                 );
               }
               const isUser = msg.type === 'user';
+              const isSpecialistAgent = msg.type === 'agent-specialist';
               return (
-                <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', gap: '10px' }}>
-                  {!isUser && <AgentAvatar variant={msg.type === 'agent-l1' ? 'l1' : 'l0'} />}
-                  <div
-                    style={{
-                      maxWidth: '70%',
-                      background: isUser ? 'var(--color-surface-2)' : 'var(--color-surface)',
-                      border: `1px solid ${isUser ? 'var(--color-border)' : 'var(--color-border)'}`,
-                      borderRadius: isUser ? '12px 0 12px 12px' : '0 12px 12px 12px',
-                      padding: '12px 16px',
-                      fontSize: '14px',
-                      lineHeight: 1.5,
-                      color: 'var(--color-ink)',
-                    }}
-                  >
+                <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', gap: 10 }}>
+                  {!isUser && <AgentAvatar variant={isSpecialistAgent ? 'specialist' : 'auto'} />}
+                  <div style={{ maxWidth: '70%', background: isUser ? 'var(--bit-tab-bg, #ececee)' : 'var(--bit-surface, #fff)', border: '1px solid var(--bit-border, #e5e5e7)', borderRadius: isUser ? '12px 0 12px 12px' : '0 12px 12px 12px', padding: '12px 16px', fontSize: 14, lineHeight: 1.5, color: 'var(--bit-ink, #1a1a1f)' }}>
                     {msg.text}
-                    {!isUser && !isResolved && !isEscalated && msg.type === 'agent' && i === messages.findIndex((m) => m.type === 'agent') && !messages.some((m) => m.type === 'system' && m.text.includes('закрыто')) && (
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                        <button
-                          onClick={handleHelpful}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            border: `1px solid var(--color-border)`,
-                            background: 'var(--color-surface)',
-                            color: 'var(--color-ink)',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Check size={14} />
-                          Помогло
-                        </button>
-                        <button
-                          onClick={handleNotHelpful}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            border: `1px solid var(--color-border)`,
-                            background: 'var(--color-surface)',
-                            color: 'var(--color-ink)',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <X size={14} />
-                          Не помогло
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               );
@@ -371,69 +348,49 @@ export default function ChatDetail({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Composer / closed */}
-          {isResolved ? (
-            <div
-              style={{
-                padding: '16px 24px',
-                borderTop: `1px solid var(--color-border)`,
-                background: 'var(--color-surface)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                color: 'var(--color-ink-muted)',
-                fontSize: '14px',
-              }}
-            >
-              <Check size={16} style={{ color: '#22C55E' }} />
-              Обращение закрыто
+          {/* Футер: кнопки L0 / решено / композер */}
+          {showL0Actions && (
+            <div style={{ padding: '14px 24px', borderTop: '1px solid var(--bit-border, #e5e5e7)', background: 'var(--bit-surface, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexShrink: 0 }}>
+              <button onClick={handleHelpful} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, border: '1px solid #34C759', background: 'rgba(52,199,89,0.08)', color: '#34C759', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all .15s ease' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(52,199,89,0.16)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(52,199,89,0.08)'; }}>
+                <CheckCircle2 size={18} />
+                Да, всё работает
+              </button>
+              <button onClick={handleNotHelpful} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, border: '1px solid var(--bit-accent, #e6007e)', background: 'rgba(230,0,126,0.06)', color: 'var(--bit-accent, #e6007e)', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all .15s ease' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(230,0,126,0.14)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(230,0,126,0.06)'; }}>
+                <HelpCircle size={18} />
+                Нет, нужна помощь
+              </button>
             </div>
-          ) : (
-            <div
-              style={{
-                padding: '12px 24px',
-                borderTop: `1px solid var(--color-border)`,
-                background: 'var(--color-surface)',
-                display: 'flex',
-                gap: '10px',
-                alignItems: 'center',
-                flexShrink: 0,
-              }}
-            >
+          )}
+
+          {isResolved && !showL0Actions && (
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--bit-border, #e5e5e7)', background: 'var(--bit-surface, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#34C759', fontSize: 14, fontWeight: 600 }}>
+              <CheckCircle2 size={18} />
+              Вопрос решён
+            </div>
+          )}
+
+          {!isResolved && !showL0Actions && !l0Loading && (
+            <div style={{ padding: '12px 24px', borderTop: '1px solid var(--bit-border, #e5e5e7)', background: 'var(--bit-surface, #fff)', display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
               <input
                 type="text"
                 value={composerText}
                 onChange={(e) => setComposerText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendComposer()}
-                placeholder={isEscalated ? 'Напишите специалисту L1…' : 'Напишите сообщение…'}
-                style={{
-                  flex: 1,
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: `1px solid var(--color-border)`,
-                  background: 'var(--color-bg)',
-                  fontSize: '14px',
-                  color: 'var(--color-ink)',
-                  outline: 'none',
-                }}
+                placeholder={isSpecialist ? 'Напишите специалисту…' : 'Напишите сообщение…'}
+                style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--bit-border, #e5e5e7)', background: 'var(--bit-bg, #f7f7f8)', fontSize: 14, color: 'var(--bit-ink, #1a1a1f)', outline: 'none', transition: 'border-color .15s ease' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--bit-accent, #e6007e)'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--bit-border, #e5e5e7)'; }}
               />
               <button
                 onClick={handleSendComposer}
                 disabled={!composerText.trim()}
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: composerText.trim() ? '#E50071' : 'var(--color-surface-2)',
-                  color: composerText.trim() ? '#fff' : 'var(--color-ink-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: composerText.trim() ? 'pointer' : 'default',
-                  transition: 'background 0.15s',
-                }}
+                style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: composerText.trim() ? 'var(--bit-accent, #e6007e)' : 'var(--bit-tab-bg, #ececee)', color: composerText.trim() ? '#fff' : 'var(--bit-muted, #86868b)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: composerText.trim() ? 'pointer' : 'default', transition: 'background .15s, transform .1s', boxShadow: composerText.trim() ? '0 2px 8px rgba(230,0,126,.3)' : 'none' }}
+                onMouseEnter={(e) => { if (composerText.trim()) e.currentTarget.style.transform = 'scale(1.06)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
               >
                 <Send size={17} />
               </button>
@@ -444,11 +401,11 @@ export default function ChatDetail({
 
       <style>{`
         .l0-pulse-dot {
-          animation: l0Pulse 1s ease-in-out infinite;
+          animation: l0Pulse 1.2s ease-in-out infinite;
         }
         @keyframes l0Pulse {
           0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.1); }
+          50% { opacity: 1; transform: scale(1.2); }
         }
         @media (max-width: 767px) {
           .chat-meta-panel { display: none !important; }
@@ -458,36 +415,27 @@ export default function ChatDetail({
   );
 }
 
+/* ================================================================
+   Вспомогательные компоненты
+   ================================================================ */
 function MetaField({ label, value }) {
   return (
     <div>
-      <div style={{ fontSize: '11px', color: 'var(--color-ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+      <div style={{ fontSize: 11, color: 'var(--bit-muted, #86868b)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
         {label}
       </div>
-      <div style={{ fontSize: '14px', color: 'var(--color-ink)', fontWeight: 500 }}>{value}</div>
+      <div style={{ fontSize: 14, color: 'var(--bit-ink, #1a1a1f)', fontWeight: 500, wordBreak: 'break-word' }}>
+        {value}
+      </div>
     </div>
   );
 }
 
-function AgentAvatar({ variant = 'l0' }) {
-  const isL1 = variant === 'l1';
+function AgentAvatar({ variant = 'auto' }) {
+  const isSpec = variant === 'specialist';
   return (
-    <div
-      style={{
-        width: '32px',
-        height: '32px',
-        borderRadius: '50%',
-        flexShrink: 0,
-        background: isL1 ? 'linear-gradient(135deg, #3B82F6, #1D4ED8)' : 'linear-gradient(135deg, #E50071, #B0005A)',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '12px',
-        fontWeight: 700,
-      }}
-    >
-      {isL1 ? 'L1' : 'L0'}
+    <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, background: isSpec ? 'linear-gradient(135deg, #1a1a1f, #3a3a40)' : 'linear-gradient(135deg, var(--bit-accent, #e6007e), #b0005a)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
+      {isSpec ? 'СП' : 'А'}
     </div>
   );
 }

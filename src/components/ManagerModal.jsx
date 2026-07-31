@@ -1,230 +1,300 @@
-import { useState, useEffect } from 'react';
-import { X, Phone, Mail, Send } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Phone, Mail, MessageCircle, Send } from 'lucide-react';
 
 export default function ManagerModal({ onClose, showToast }) {
-  const [message, setMessage] = useState('');
+  const [text, setText] = useState('');
+
+  // Закрытие по ESC
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === 'Escape') onClose?.();
+    },
+    [onClose]
+  );
 
   useEffect(() => {
-    const handleKey = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
+    document.addEventListener('keydown', handleKeyDown);
+    // Блокировка прокрутки body
     document.body.style.overflow = 'hidden';
     return () => {
-      window.removeEventListener('keydown', handleKey);
+      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, [handleKeyDown]);
 
   const handleSend = () => {
-    onClose();
-    showToast('Сообщение отправлено менеджеру');
+    if (!text.trim()) return;
+    showToast?.('Сообщение отправлено');
+    onClose?.();
+  };
+
+  // Закрытие по клику на overlay
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) onClose?.();
   };
 
   return (
     <div
-      onClick={onClose}
+      onClick={handleOverlayClick}
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 1000,
+        zIndex: 9999,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'center',
-        padding: '20px',
-        background: 'rgba(24, 24, 27, 0.45)',
+        backgroundColor: 'rgba(0,0,0,0.35)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
+        animation: 'toastFadeIn 0.2s ease',
       }}
     >
+      {/* Модальное окно */}
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="manager-modal-inner"
         style={{
           width: '100%',
-          maxWidth: '440px',
-          background: 'var(--color-surface)',
-          borderRadius: '16px',
-          border: `1px solid var(--color-border)`,
-          boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
-          overflow: 'hidden',
+          maxWidth: 480,
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          backgroundColor: 'var(--color-surface)',
+          borderRadius: '24px 24px 0 0',
+          padding: '20px 16px 28px',
+          animation: 'managerModalIn 0.3s ease',
+          position: 'relative',
         }}
       >
-        {/* Header */}
+        {/* Кнопка закрытия */}
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 14,
+            right: 14,
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '50%',
+            border: 'none',
+            backgroundColor: 'var(--color-surface-2)',
+            color: 'var(--color-ink-muted)',
+            cursor: 'pointer',
+            transition: 'background-color 0.15s ease',
+          }}
+          className="hover:bg-[var(--color-border)]"
+        >
+          <X size={18} />
+        </button>
+
+        {/* Заголовок */}
+        <h2
+          style={{
+            margin: '0 0 20px',
+            fontSize: '20px',
+            fontWeight: 700,
+            color: 'var(--color-ink)',
+          }}
+        >
+          Ваш менеджер
+        </h2>
+
+        {/* Аватар + ФИО */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '20px 24px',
-            borderBottom: `1px solid var(--color-border)`,
+            gap: '14px',
+            marginBottom: '18px',
           }}
         >
-          <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-ink)', margin: 0 }}>Ваш менеджер</h2>
-          <button
-            onClick={onClose}
+          <div
             style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'var(--color-surface-2)',
-              color: 'var(--color-ink-muted)',
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              flexShrink: 0,
+              background:
+                'linear-gradient(135deg, var(--color-accent) 0%, #ff7eb3 50%, #ff758c 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'background 0.15s, color 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--color-border)';
-              e.currentTarget.style.color = 'var(--color-ink)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'var(--color-surface-2)';
-              e.currentTarget.style.color = 'var(--color-ink-muted)';
-            }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Manager block */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div
-              style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #18181B, #E50071)',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '20px',
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-            >
-              АП
-            </div>
-            <div>
-              <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-ink)' }}>Анна Петрова</div>
-              <div style={{ fontSize: '13px', color: 'var(--color-ink-muted)' }}>Персональный менеджер</div>
-            </div>
-          </div>
-
-          {/* Contacts */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <a
-              href="tel:+74951234567"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '12px 16px',
-                borderRadius: '10px',
-                border: `1px solid var(--color-border)`,
-                background: 'var(--color-bg)',
-                color: 'var(--color-ink)',
-                fontSize: '14px',
-                fontWeight: 500,
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <Phone size={16} style={{ color: '#E50071' }} />
-              +7 (495) 123-45-67
-            </a>
-            <a
-              href="mailto:anna.petrova@1bit.ru"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '12px 16px',
-                borderRadius: '10px',
-                border: `1px solid var(--color-border)`,
-                background: 'var(--color-bg)',
-                color: 'var(--color-ink)',
-                fontSize: '14px',
-                fontWeight: 500,
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              <Mail size={16} style={{ color: '#E50071' }} />
-              anna.petrova@1bit.ru
-            </a>
-          </div>
-
-          {/* Textarea */}
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', color: 'var(--color-ink-muted)', marginBottom: '6px' }}>
-              Сообщение
-            </label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-              placeholder="Опишите ваш вопрос или предложение…"
-              style={{
-                width: '100%',
-                padding: '12px 14px',
-                borderRadius: '10px',
-                border: `1px solid var(--color-border)`,
-                background: 'var(--color-bg)',
-                fontSize: '14px',
-                color: 'var(--color-ink)',
-                outline: 'none',
-                boxSizing: 'border-box',
-                resize: 'vertical',
-                fontFamily: 'inherit',
-                lineHeight: 1.5,
-                transition: 'border-color 0.15s',
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = '#E50071')}
-              onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--color-border)')}
-            />
-          </div>
-
-          {/* Send button */}
-          <button
-            onClick={handleSend}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              width: '100%',
-              padding: '12px 20px',
-              borderRadius: '10px',
-              border: 'none',
-              background: '#E50071',
               color: '#fff',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'background 0.15s',
+              fontSize: '20px',
+              fontWeight: 700,
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#B0005A')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = '#E50071')}
           >
-            <Send size={16} />
-            Отправить сообщение
+            ИИ
+          </div>
+          <div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '16px',
+                fontWeight: 600,
+                color: 'var(--color-ink)',
+              }}
+            >
+              Иванов Иван Иванович
+            </p>
+            <p
+              style={{
+                margin: '2px 0 0',
+                fontSize: '13px',
+                color: 'var(--color-ink-muted)',
+              }}
+            >
+              Персональный менеджер · Офис Кемерово
+            </p>
+          </div>
+        </div>
+
+        {/* Контакты */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            marginBottom: '20px',
+          }}
+        >
+          <a
+            href="tel:+79991234567"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 14px',
+              borderRadius: '12px',
+              backgroundColor: 'var(--color-surface-2)',
+              color: 'var(--color-ink)',
+              textDecoration: 'none',
+              fontSize: '14px',
+              fontWeight: 500,
+              transition: 'background-color 0.15s ease',
+            }}
+            className="hover:bg-[var(--color-border)]"
+          >
+            <Phone size={16} color="var(--color-accent)" />
+            +7 (999) 123-45-67
+          </a>
+
+          <a
+            href="mailto:manager@bit.ru"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 14px',
+              borderRadius: '12px',
+              backgroundColor: 'var(--color-surface-2)',
+              color: 'var(--color-ink)',
+              textDecoration: 'none',
+              fontSize: '14px',
+              fontWeight: 500,
+              transition: 'background-color 0.15s ease',
+            }}
+            className="hover:bg-[var(--color-border)]"
+          >
+            <Mail size={16} color="var(--color-accent)" />
+            manager@bit.ru
+          </a>
+
+          <button
+            type="button"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 14px',
+              borderRadius: '12px',
+              backgroundColor: 'var(--color-surface-2)',
+              color: 'var(--color-ink)',
+              border: 'none',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'background-color 0.15s ease',
+            }}
+            className="hover:bg-[var(--color-border)]"
+          >
+            <MessageCircle size={16} color="var(--color-accent)" />
+            Написать сообщение
           </button>
         </div>
+
+        {/* Textarea */}
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Напишите ваш вопрос менеджеру…"
+          rows={4}
+          style={{
+            width: '100%',
+            padding: '12px 14px',
+            fontSize: '14px',
+            lineHeight: '20px',
+            color: 'var(--color-ink)',
+            backgroundColor: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '12px',
+            outline: 'none',
+            resize: 'none',
+            boxSizing: 'border-box',
+            fontFamily: 'inherit',
+            transition: 'border-color 0.15s ease',
+          }}
+          className="focus:border-[var(--color-accent)]"
+        />
+
+        {/* Кнопка Отправить */}
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={!text.trim()}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            width: '100%',
+            marginTop: '14px',
+            padding: '12px 0',
+            fontSize: '15px',
+            fontWeight: 600,
+            color: '#fff',
+            backgroundColor: text.trim()
+              ? 'var(--color-accent)'
+              : 'var(--color-ink-light)',
+            border: 'none',
+            borderRadius: '12px',
+            cursor: text.trim() ? 'pointer' : 'not-allowed',
+            transition: 'opacity 0.15s ease',
+          }}
+          className={text.trim() ? 'hover:opacity-90 active:opacity-80' : ''}
+        >
+          <Send size={16} />
+          Отправить
+        </button>
       </div>
 
+      {/* CSS-анимации (вставляем один раз через style-тег) */}
       <style>{`
-        .manager-modal-inner {
-          animation: modalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        @keyframes toastFadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
         }
-        @keyframes modalScaleIn {
-          from { transform: scale(0.92); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
+        @keyframes managerModalIn {
+          from {
+            opacity: 0;
+            transform: scale(0.92) translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
         }
       `}</style>
     </div>

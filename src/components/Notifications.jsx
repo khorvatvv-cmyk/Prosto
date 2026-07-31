@@ -1,156 +1,173 @@
-import { MessageCircle, Layers, UserPlus, Check, Calendar, ChevronRight } from 'lucide-react';
+import React from 'react';
+import {
+  MailOpen,
+  Sparkles,
+  UserCheck,
+  CheckCircle2,
+  Clock,
+} from 'lucide-react';
 
-const NOTIFICATIONS = [
+const notifications = [
   {
     id: 1,
-    icon: MessageCircle,
-    iconColor: '#E50071',
-    title: 'Новый ответ по обращению #1248',
-    description: 'Специалист L1 ответил на ваше обращение «Настройка обмена с банком».',
-    time: '10 минут назад',
+    icon: MailOpen,
+    title: 'Получен автоматический ответ',
+    description: 'Проверьте, помогло ли решение.',
     unread: true,
-    navigate: 'detail',
   },
   {
     id: 2,
-    icon: Layers,
-    iconColor: '#3B82F6',
-    title: 'Обновление конфигурации',
-    description: 'Доступно обновление 1С:Бухгалтерия 8.3 (ред. 3.0). Версия 3.0.142.',
-    time: '1 час назад',
+    icon: Sparkles,
+    title: 'Новое предложение для вас',
+    description: 'Посмотрите в разделе «Важное».',
     unread: true,
-    navigate: 'important',
   },
   {
     id: 3,
-    icon: UserPlus,
-    iconColor: '#F59E0B',
-    title: 'Назначен новый менеджер',
-    description: 'Ваш персональный менеджер — Анна Петрова. Свяжитесь для согласования плана работ.',
-    time: '3 часа назад',
+    icon: UserCheck,
+    title: 'Подключили специалиста',
+    description: 'Сергей К. уже изучает ваш вопрос.',
     unread: true,
-    navigate: 'detail',
   },
   {
     id: 4,
-    icon: Check,
-    iconColor: '#22C55E',
-    title: 'Обращение #1240 закрыто',
-    description: 'Обращение «Доработка печатной формы» помечено как «Решено». Оцените работу.',
-    time: 'Вчера',
+    icon: CheckCircle2,
+    title: 'Вопрос решён',
+    description: 'Спасибо за подтверждение!',
     unread: false,
-    navigate: 'detail',
   },
   {
     id: 5,
-    icon: Calendar,
-    iconColor: '#8B5CF6',
-    title: 'Срок договора ИТС подходит к концу',
-    description: 'Договор ИТС ПРОФ действует до 31.12.2026. Продлите со скидкой до 15%.',
-    time: '2 дня назад',
+    icon: Clock,
+    title: 'Продление ИТС ПРОФ',
+    description: 'Менеджер свяжется с вами.',
     unread: false,
-    navigate: 'important',
   },
 ];
 
 export default function Notifications({ onNavigate }) {
   return (
-    <div style={{ padding: '32px 24px', maxWidth: '720px', margin: '0 auto' }}>
-      {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-ink-muted)', marginBottom: '20px' }}>
-        <span>Главная</span>
-        <ChevronRight size={14} />
-        <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>Уведомления</span>
+    <section style={{ padding: '24px 16px 8px' }}>
+      {/* Заголовок */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '18px',
+        }}
+      >
+        <h2
+          style={{
+            margin: 0,
+            fontSize: '22px',
+            fontWeight: 700,
+            lineHeight: '28px',
+            color: 'var(--color-ink)',
+          }}
+        >
+          Уведомления
+        </h2>
+
+        <button
+          type="button"
+          onClick={() => onNavigate?.('profile')}
+          style={{
+            fontSize: '13px',
+            fontWeight: 500,
+            color: 'var(--color-accent)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          Профиль
+        </button>
       </div>
 
-      <h1 style={{ fontSize: '26px', fontWeight: 700, color: 'var(--color-ink)', margin: '0 0 8px 0' }}>Уведомления</h1>
-      <p style={{ fontSize: '14px', color: 'var(--color-ink-muted)', margin: '0 0 24px 0' }}>3 непрочитанных из 5</p>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {NOTIFICATIONS.map((n) => {
-          const Icon = n.icon;
-          return (
+      {/* Список уведомлений */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {notifications.map((item) => (
+          <div
+            key={item.id}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '14px 12px',
+              borderRadius: '12px',
+              backgroundColor: item.unread
+                ? 'color-mix(in srgb, var(--color-accent) 4%, var(--color-surface))'
+                : 'transparent',
+              borderLeft: item.unread
+                ? '3px solid var(--color-accent)'
+                : '3px solid transparent',
+              transition: 'background-color 0.15s ease',
+              cursor: 'default',
+            }}
+            className={item.unread ? 'hover:bg-[color-mix(in_srgb,var(--color-accent)_8%,var(--color-surface))]' : ''}
+          >
+            {/* Иконка */}
             <div
-              key={n.id}
-              onClick={() => onNavigate(n.navigate)}
-              className="notif-card"
               style={{
-                position: 'relative',
+                flexShrink: 0,
+                width: 36,
+                height: 36,
+                borderRadius: '10px',
                 display: 'flex',
-                gap: '14px',
-                alignItems: 'flex-start',
-                padding: '16px 20px 16px 24px',
-                borderRadius: '12px',
-                border: `1px solid var(--color-border)`,
-                background: n.unread ? 'var(--color-surface)' : 'var(--color-surface-2)',
-                cursor: 'pointer',
-                overflow: 'hidden',
-                transition: 'border-color 0.15s, box-shadow 0.15s',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: item.unread
+                  ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)'
+                  : 'var(--color-surface-2)',
+                color: item.unread ? 'var(--color-accent)' : 'var(--color-ink-muted)',
               }}
             >
-              {/* Left bar for unread */}
-              {n.unread && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: '4px',
-                    background: '#E50071',
-                  }}
-                />
-              )}
+              <item.icon size={18} />
+            </div>
 
-              {/* Icon */}
-              <div
+            {/* Текст */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p
                 style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '10px',
-                  background: `${n.iconColor}12`,
-                  color: n.iconColor,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
+                  margin: 0,
+                  fontSize: '14px',
+                  fontWeight: item.unread ? 600 : 400,
+                  lineHeight: '18px',
+                  color: 'var(--color-ink)',
                 }}
               >
-                <Icon size={20} />
-              </div>
-
-              {/* Content */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '12px', marginBottom: '4px' }}>
-                  <h3
-                    style={{
-                      fontSize: '14px',
-                      fontWeight: n.unread ? 600 : 500,
-                      color: 'var(--color-ink)',
-                      margin: 0,
-                    }}
-                  >
-                    {n.title}
-                  </h3>
-                  <span style={{ fontSize: '12px', color: 'var(--color-ink-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    {n.time}
-                  </span>
-                </div>
-                <p style={{ fontSize: '13px', color: 'var(--color-ink-muted)', lineHeight: 1.5, margin: 0 }}>
-                  {n.description}
-                </p>
-              </div>
+                {item.title}
+              </p>
+              <p
+                style={{
+                  margin: '2px 0 0',
+                  fontSize: '13px',
+                  lineHeight: '17px',
+                  color: 'var(--color-ink-muted)',
+                }}
+              >
+                {item.description}
+              </p>
             </div>
-          );
-        })}
-      </div>
 
-      <style>{`
-        .notif-card:hover {
-          border-color: #E50071 !important;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-        }
-      `}</style>
-    </div>
+            {/* Индикатор непрочитанного (точка) */}
+            {item.unread && (
+              <div
+                style={{
+                  flexShrink: 0,
+                  width: 8,
+                  height: 8,
+                  marginTop: 6,
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-accent)',
+                }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

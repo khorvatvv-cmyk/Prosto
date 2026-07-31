@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, X, Paperclip } from 'lucide-react';
+import { Upload, X, Paperclip, MessageCirclePlus } from 'lucide-react';
 
 export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} }) {
   const [title, setTitle] = useState('');
@@ -10,7 +10,7 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      setError('Введите тему обращения');
+      setError('Укажите тему вопроса');
       return;
     }
     setError('');
@@ -34,38 +34,75 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--bit-bg, #f7f7f8)' }}>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px 64px' }}>
-        {/* Breadcrumb */}
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 28, fontSize: 13 }}>
+        {/* ─── Breadcrumb ─── */}
+        <nav
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 28,
+            fontSize: 13,
+          }}
+        >
           <span
-            style={{ color: 'var(--bit-muted, #86868b)', cursor: 'pointer' }}
+            style={{
+              color: 'var(--bit-muted, #86868b)',
+              cursor: 'pointer',
+              transition: 'color .15s',
+            }}
             onClick={onCancel}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--bit-accent, #e6007e)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--bit-muted, #86868b)';
+            }}
           >
-            Обращения
+            Вопросы
           </span>
           <span style={{ color: 'var(--bit-muted, #86868b)' }}>/</span>
-          <span style={{ color: 'var(--bit-ink, #1a1a1f)', fontWeight: 600 }}>
-            Новое обращение
+          <span
+            style={{
+              color: 'var(--bit-ink, #1a1a1f)',
+              fontWeight: 600,
+            }}
+          >
+            Новый вопрос
           </span>
         </nav>
 
-        {/* Header row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <h1 style={{ fontSize: 30, fontWeight: 800, margin: 0, color: 'var(--bit-ink, #1a1a1f)' }}>
-            Опишите вопрос
-          </h1>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--bit-accent, #e6007e)', letterSpacing: '0.5px' }}>
-            ШАГ 1 / 1
-          </span>
-        </div>
-
-        <p style={{ fontSize: 14, color: 'var(--bit-muted, #86868b)', marginBottom: 32, lineHeight: 1.5 }}>
-          Чем подробнее вы опишете задачу, тем быстрее мы найдём решение.
-          При необходимости прикрепите скриншоты или документы.
+        {/* ─── Заголовок ─── */}
+        <h1
+          className="gradient-text"
+          style={{
+            fontSize: 34,
+            fontWeight: 800,
+            margin: '0 0 10px',
+            background:
+              'linear-gradient(90deg, var(--bit-ink, #1a1a1f) 0%, var(--bit-accent, #e6007e) 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
+          Что случилось?
+        </h1>
+        <p
+          style={{
+            fontSize: 14,
+            color: 'var(--bit-muted, #86868b)',
+            marginBottom: 32,
+            lineHeight: 1.5,
+            maxWidth: 520,
+          }}
+        >
+          Не нужно определять тип проблемы или искать специалиста. Просто
+          опишите ситуацию.
         </p>
 
-        {/* Form */}
+        {/* ─── Форма ─── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Title */}
+          {/* Тема */}
           <div>
             <label
               style={{
@@ -76,7 +113,7 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
                 marginBottom: 8,
               }}
             >
-              Тема
+              О чём речь
             </label>
             <input
               type="text"
@@ -85,12 +122,16 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
                 setTitle(e.target.value);
                 if (error) setError('');
               }}
-              placeholder="Например: не работает печатная форма счёта"
+              placeholder="Например: не проводится документ в 1С"
               style={{
                 width: '100%',
                 padding: '12px 16px',
                 fontSize: 15,
-                border: `1px solid ${error ? 'var(--bit-danger, #ff3b30)' : 'var(--bit-border, #e5e5e7)'}`,
+                border: `1px solid ${
+                  error
+                    ? 'var(--bit-danger, #ff3b30)'
+                    : 'var(--bit-border, #e5e5e7)'
+                }`,
                 borderRadius: 10,
                 outline: 'none',
                 boxSizing: 'border-box',
@@ -100,7 +141,8 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
               onFocus={(e) => {
                 if (!error) {
                   e.currentTarget.style.borderColor = 'var(--bit-accent, #e6007e)';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(230,0,126,.12)';
+                  e.currentTarget.style.boxShadow =
+                    '0 0 0 3px rgba(230,0,126,.12)';
                 }
               }}
               onBlur={(e) => {
@@ -111,13 +153,19 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
               }}
             />
             {error && (
-              <p style={{ fontSize: 13, color: 'var(--bit-danger, #ff3b30)', margin: '6px 0 0' }}>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: 'var(--bit-danger, #ff3b30)',
+                  margin: '6px 0 0',
+                }}
+              >
                 {error}
               </p>
             )}
           </div>
 
-          {/* Description */}
+          {/* Описание */}
           <div>
             <label
               style={{
@@ -128,12 +176,12 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
                 marginBottom: 8,
               }}
             >
-              Описание
+              Расскажите подробнее
             </label>
             <textarea
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              placeholder="Опишите подробно: что делали, что ожидали, что получили…"
+              placeholder="Что произошло? Какие действия выполняли? Что ожидали увидеть?"
               style={{
                 width: '100%',
                 height: 130,
@@ -151,7 +199,8 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
               }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = 'var(--bit-accent, #e6007e)';
-                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(230,0,126,.12)';
+                e.currentTarget.style.boxShadow =
+                  '0 0 0 3px rgba(230,0,126,.12)';
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = 'var(--bit-border, #e5e5e7)';
@@ -160,7 +209,7 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
             />
           </div>
 
-          {/* Attachments */}
+          {/* ─── Вложения ─── */}
           <div>
             <label
               style={{
@@ -175,7 +224,14 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
             </label>
 
             {files.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
                 {files.map((f, idx) => (
                   <div
                     key={idx}
@@ -189,8 +245,19 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
                       backgroundColor: 'var(--bit-surface, #fff)',
                     }}
                   >
-                    <Paperclip size={16} style={{ color: 'var(--bit-muted, #86868b)' }} />
-                    <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <Paperclip
+                      size={16}
+                      style={{ color: 'var(--bit-muted, #86868b)' }}
+                    />
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: 13,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {f.name}
                     </span>
                     <button
@@ -203,6 +270,13 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
                         padding: 2,
                         display: 'flex',
                         color: 'var(--bit-muted, #86868b)',
+                        transition: 'color .15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--bit-danger, #ff3b30)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--bit-muted, #86868b)';
                       }}
                     >
                       <X size={16} />
@@ -228,18 +302,33 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'var(--bit-accent, #e6007e)';
-                e.currentTarget.style.backgroundColor = 'rgba(230,0,126,.03)';
+                e.currentTarget.style.backgroundColor =
+                  'rgba(230,0,126,.03)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = 'var(--bit-border, #d5d5d8)';
                 e.currentTarget.style.backgroundColor = 'transparent';
               }}
             >
-              <Upload size={24} style={{ color: 'var(--bit-muted, #86868b)' }} />
-              <span style={{ fontSize: 14, color: 'var(--bit-ink, #1a1a1f)', fontWeight: 500 }}>
+              <Upload
+                size={24}
+                style={{ color: 'var(--bit-muted, #86868b)' }}
+              />
+              <span
+                style={{
+                  fontSize: 14,
+                  color: 'var(--bit-ink, #1a1a1f)',
+                  fontWeight: 500,
+                }}
+              >
                 Перетащите файлы или нажмите для выбора
               </span>
-              <span style={{ fontSize: 12, color: 'var(--bit-muted, #86868b)' }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--bit-muted, #86868b)',
+                }}
+              >
                 PNG, JPG, PDF — до 10 МБ
               </span>
               <input
@@ -252,7 +341,7 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
           </div>
         </div>
 
-        {/* Buttons */}
+        {/* ─── Кнопки ─── */}
         <div
           style={{
             display: 'flex',
@@ -268,13 +357,25 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
             onClick={onCancel}
             disabled={submitting}
             style={{
-              border: 'none',
+              border: '1px solid var(--bit-border, #e5e5e7)',
               background: 'transparent',
               color: 'var(--bit-muted, #86868b)',
               fontSize: 14,
               fontWeight: 600,
               cursor: submitting ? 'not-allowed' : 'pointer',
               padding: '12px 20px',
+              borderRadius: 10,
+              transition: 'all .15s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!submitting) {
+                e.currentTarget.style.borderColor = 'var(--bit-muted, #86868b)';
+                e.currentTarget.style.color = 'var(--bit-ink, #1a1a1f)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--bit-border, #e5e5e7)';
+              e.currentTarget.style.color = 'var(--bit-muted, #86868b)';
             }}
           >
             Отмена
@@ -286,10 +387,10 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 10,
               border: 'none',
               borderRadius: 12,
-              padding: '13px 28px',
+              padding: '14px 32px',
               fontSize: 15,
               fontWeight: 600,
               cursor: submitting ? 'not-allowed' : 'pointer',
@@ -303,15 +404,18 @@ export default function NewRequest({ onSubmit = () => {}, onCancel = () => {} })
             onMouseEnter={(e) => {
               if (!submitting) {
                 e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 8px 22px rgba(230,0,126,.35)';
+                e.currentTarget.style.boxShadow =
+                  '0 8px 22px rgba(230,0,126,.35)';
               }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 14px rgba(230,0,126,.25)';
+              e.currentTarget.style.boxShadow =
+                '0 4px 14px rgba(230,0,126,.25)';
             }}
           >
-            {submitting ? 'Отправка…' : 'Отправить в L0'}
+            <MessageCirclePlus size={20} />
+            {submitting ? 'Отправка…' : 'Просто спросить'}
           </button>
         </div>
       </div>

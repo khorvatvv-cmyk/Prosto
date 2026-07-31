@@ -17,9 +17,9 @@ const SURFACE_2 = 'var(--color-surface-2)';
 const BORDER = 'var(--color-border)';
 
 const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Обращения', icon: LayoutGrid },
-  { key: 'new', label: 'Создать', icon: Plus },
-  { key: 'important', label: 'Важное для вас', icon: Star },
+  { key: 'dashboard', label: 'Вопросы', icon: LayoutGrid },
+  { key: 'new', label: 'Задать вопрос', icon: Plus },
+  { key: 'important', label: 'Важное', icon: Star },
   { key: 'notifs', label: 'Уведомления', icon: Bell },
 ];
 
@@ -29,23 +29,14 @@ function Logo({ onClick }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-[2px] shrink-0 cursor-pointer select-none"
-      style={{ font: '600 18px/1 var(--font-sans)', color: INK }}
+      className="flex items-center shrink-0 cursor-pointer select-none"
       title="На главную"
     >
-      <span style={{ fontWeight: 500 }}>первый</span>
-      <span
-        style={{
-          display: 'inline-block',
-          width: 7,
-          height: 7,
-          background: ACCENT,
-          borderRadius: '50%',
-          margin: '0 2px',
-          transform: 'translateY(-1px)',
-        }}
+      <img
+        src="/logo.png"
+        alt="просто."
+        style={{ height: 24, width: 'auto' }}
       />
-      <span style={{ fontWeight: 700 }}>Бит</span>
     </button>
   );
 }
@@ -213,8 +204,9 @@ function RightBlock({ onOpenManager, onNavigate }) {
 export default function Header({ onNavigate, onOpenManager, page }) {
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-30 flex items-center px-4 h-14"
+      className="fixed top-0 left-0 right-0 z-30 flex items-center px-4"
       style={{
+        height: 56,
         background: SURFACE,
         borderBottom: `1px solid ${BORDER}`,
         boxShadow: '0 1px 3px rgba(0,0,0,.04)',

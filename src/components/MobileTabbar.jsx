@@ -6,8 +6,8 @@ const SURFACE = 'var(--color-surface)';
 const BORDER = 'var(--color-border)';
 
 const TABS = [
-  { key: 'dashboard', label: 'Обращения', icon: LayoutGrid },
-  { key: 'new', label: 'Создать', icon: Plus },
+  { key: 'dashboard', label: 'Вопросы', icon: LayoutGrid },
+  { key: 'new', label: 'Задать', icon: Plus },
   { key: 'important', label: 'Важное', icon: Star, badge: 2 },
   { key: 'notifs', label: 'Уведом.', icon: Bell, badge: 3 },
   { key: 'profile', label: 'Профиль', icon: User },

@@ -1,8 +1,8 @@
 import {
-  LayoutGrid,
   MessageCircle,
+  Bot,
   Users,
-  Layers,
+  Star,
   Bell,
   User,
   Phone,
@@ -18,15 +18,15 @@ const SURFACE_2 = 'var(--color-surface-2)';
 const BORDER = 'var(--color-border)';
 
 const MAIN_ITEMS = [
-  { key: 'dashboard', label: 'Все обращения', icon: LayoutGrid },
-  { key: 'l0', label: 'L0 — автоматическая', icon: MessageCircle },
-  { key: 'l1', label: 'L1 — специалист', icon: Users },
-  { key: 'important', label: 'Важное для вас', icon: Layers, badge: 2 },
+  { key: 'dashboard', label: 'Мои вопросы', icon: MessageCircle },
+  { key: 'l0', label: 'Автоматические ответы', icon: Bot },
+  { key: 'l1', label: 'Специалисты', icon: Users },
+  { key: 'important', label: 'Важное', icon: Star, badge: 2 },
   { key: 'notifs', label: 'Уведомления', icon: Bell, badge: 3 },
 ];
 
 const ORG_ITEMS = [
-  { key: 'profile', label: 'Профиль и ИНН', icon: User },
+  { key: 'profile', label: 'Профиль', icon: User },
   { key: 'manager', label: 'Связаться с менеджером', icon: Phone, action: 'manager' },
   { key: '', label: 'Выйти', icon: LogOut, action: 'exit' },
 ];
@@ -121,7 +121,7 @@ export default function Sidebar({ onNavigate, onFiltered, onOpenManager, page })
           className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider"
           style={{ color: INK_LIGHT }}
         >
-          Организация
+          ОРГАНИЗАЦИЯ
         </div>
         <div className="flex flex-col gap-0.5">
           {ORG_ITEMS.map((item) => (

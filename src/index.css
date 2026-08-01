@@ -77,3 +77,8 @@
   transition: transform .3s cubic-bezier(.34,1.56,.64,1);
 }
 .brand-dot:hover { transform: scale(1.4); }
+
+/* Login responsive */
+@media(max-width:900px){
+  .login-right{display:none!important}
+}

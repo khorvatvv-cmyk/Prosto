@@ -101,7 +101,7 @@ export default function App() {
     <div className="h-screen flex flex-col bg-[var(--color-bg)]">
       <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} onLogout={logout} />
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar onNavigate={goTo} onFiltered={goToFiltered} onOpenManager={() => setManagerOpen(true)} page={page} filter={filter} />
+        <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} />
         <main className="flex-1 overflow-y-auto p-8 md:p-5 pb-20 md:pb-20" style={{ scrollBehavior: 'smooth' }}>
           <div className="max-w-[1060px] mx-auto">
             {page === 'dashboard' && (

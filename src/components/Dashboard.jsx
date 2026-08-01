@@ -1,13 +1,9 @@
-import { MessageCirclePlus, TrendingUp, MessageSquare } from 'lucide-react'
+import { MessageCirclePlus, MessageSquare, Clock, CheckCircle2 } from 'lucide-react'
 
 export default function Dashboard({ requests, filter, onFilterChange, onOpenDetail, onNavigate, user }) {
-  const ACCENT = 'var(--color-accent)'
-  const INK = 'var(--color-ink)'
-  const INK_MUTED = 'var(--color-ink-muted)'
-  const INK_LIGHT = 'var(--color-ink-light)'
-  const SURFACE = 'var(--color-surface)'
-  const SURFACE_2 = 'var(--color-surface-2)'
-  const BORDER = 'var(--color-border)'
+  const A = '#E50071', AH = '#C70060'
+  const INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
+  const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
 
   const filtered = filter === 'all' ? requests : requests.filter(r => {
     if (filter === 'open') return r.status === 'open' || r.status === 'waiting'
@@ -18,30 +14,25 @@ export default function Dashboard({ requests, filter, onFilterChange, onOpenDeta
   })
 
   const openCount = requests.filter(r => r.status === 'open' || r.status === 'waiting').length
-  const inWork = requests.filter(r => r.status === 'waiting').length
-  const done = requests.filter(r => r.status === 'done').length
+  const doneCount = requests.filter(r => r.status === 'done').length
 
   const metrics = [
-    { label: 'Открыто', value: openCount, accent: true },
-    { label: 'В работе', value: inWork },
-    { label: 'Решено', value: done },
-    { label: 'Всего', value: requests.length },
+    { label: 'Открыто', value: openCount, accent: true, icon: Clock },
+    { label: 'Решено', value: doneCount, icon: CheckCircle2 },
+    { label: 'Всего', value: requests.length, icon: MessageSquare },
   ]
 
   const filters = [
     { id: 'all', label: 'Все' },
     { id: 'open', label: 'Открытые' },
-    { id: 'l0', label: 'Авто' },
-    { id: 'l1', label: 'Специалисты' },
     { id: 'done', label: 'Решённые' },
   ]
 
   const getBadge = (r) => {
-    if (r.status === 'done') return { cls: 'badge-done', text: 'Решено' }
-    if (r.status === 'waiting') return { cls: 'badge-waiting', text: 'Ожидает' }
-    if (r.level === 'l0') return { cls: 'badge-l0', text: 'Авто' }
-    if (r.level === 'l1') return { cls: 'badge-l1', text: 'Специалист' }
-    return { cls: 'badge-new', text: 'Новый' }
+    if (r.status === 'done') return { text: 'Решено', bg: S2, color: M, border: BD }
+    if (r.status === 'waiting') return { text: 'Ожидает', bg: S2, color: INK, border: BD }
+    if (r.level === 'l0') return { text: 'Ответ получен', bg: '#FFF0F7', color: A, border: '#FFF0F7' }
+    return { text: 'Новый', bg: '#FFF0F7', color: A, border: '#FFF0F7' }
   }
 
   const formatDate = (d) => {
@@ -50,72 +41,83 @@ export default function Dashboard({ requests, filter, onFilterChange, onOpenDeta
   }
 
   return (
-    <div className="animate-fade-up">
+    <div style={{ animation: 'fadeUp .4s ease both' }}>
       {/* HERO */}
-      <div className="flex items-start justify-between gap-6 mb-8 flex-col md:flex-row">
-        <div>
-          <div style={{ fontSize: 14, color: INK_MUTED, marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24, marginBottom: 32, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 250 }}>
+          <div style={{ fontSize: 14, color: M, marginBottom: 8 }}>
             <span style={{ fontWeight: 600, color: INK }}>Здравствуйте{user?.name ? `, ${user.name.split(' ')[0]}` : ''}</span>
           </div>
-          <h1 className="gradient-text" style={{ fontSize: 38, fontWeight: 800, letterSpacing: '-.035em', lineHeight: 1.05 }}>
-            Что случилось?
+          <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-.03em', lineHeight: 1.1, color: INK, marginBottom: 8 }}>
+            Опишите вопрос —<br/>
+            <span style={{ background: `linear-gradient(135deg, ${INK} 0%, ${A} 100%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+              остальное сделаем мы
+            </span>
           </h1>
-          <p style={{ fontSize: 15, color: INK_MUTED, marginTop: 8, maxWidth: 400 }}>
-            Опишите ситуацию своими словами. Кого подключить и что делать дальше — решим мы.
+          <p style={{ fontSize: 15, color: M, maxWidth: 400, lineHeight: 1.6 }}>
+            Просто расскажите, что произошло. Мы найдём решение или подключим нужного специалиста.
           </p>
         </div>
-        <button onClick={() => onNavigate('new')} className="inline-flex items-center gap-2 flex-shrink-0"
-          style={{ background: ACCENT, color: '#fff', border: 'none', padding: '0 26px', height: 50, fontSize: 15, fontWeight: 600, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s', boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}
-          onMouseEnter={e=>{e.currentTarget.style.background='var(--color-accent-hover)';e.currentTarget.style.boxShadow='0 6px 20px rgba(229,0,113,.25)'}}
-          onMouseLeave={e=>{e.currentTarget.style.background=ACCENT;e.currentTarget.style.boxShadow='0 1px 2px rgba(0,0,0,.03)'}}>
+        <button onClick={() => onNavigate('new')}
+          style={{ background: A, color: '#fff', border: 'none', padding: '0 24px', height: 48, fontSize: 15, fontWeight: 600, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'all .2s', boxShadow: '0 4px 14px rgba(229,0,113,.2)', flexShrink: 0 }}
+          onMouseEnter={e => { e.currentTarget.style.background = AH; e.currentTarget.style.boxShadow = '0 6px 20px rgba(229,0,113,.3)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = A; e.currentTarget.style.boxShadow = '0 4px 14px rgba(229,0,113,.2)' }}>
           <MessageCirclePlus size={18} /> Просто спросить
         </button>
       </div>
 
       {/* METRICS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-8 stagger">
-        {metrics.map((m, i) => (
-          <div key={i} className="transition-all cursor-default"
-            style={{ background: SURFACE, border: `1px solid ${BORDER}`, padding: 20, borderRadius: 10, boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}
-            onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--color-border-strong)';e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,.06),0 2px 6px rgba(0,0,0,.04)';e.currentTarget.style.transform='translateY(-2px)'}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.boxShadow='0 1px 2px rgba(0,0,0,.03)';e.currentTarget.style.transform='translateY(0)'}}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 10 }}>{m.label}</div>
-            <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-.03em', lineHeight: 1, color: m.accent ? ACCENT : INK }}>{m.value}</div>
-          </div>
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 32 }}>
+        {metrics.map((m, i) => {
+          const Icon = m.icon
+          return (
+            <div key={i}
+              style={{ background: S, border: `1px solid ${BD}`, padding: 18, borderRadius: 10, boxShadow: '0 1px 2px rgba(0,0,0,.03)', transition: 'all .2s', cursor: 'default' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#D4D4D8'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,.06)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = BD; e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,.03)'; e.currentTarget.style.transform = 'translateY(0)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 6, background: m.accent ? '#FFF0F7' : S2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon size={14} style={{ color: m.accent ? A : M }} />
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L }}>{m.label}</span>
+              </div>
+              <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-.03em', lineHeight: 1, color: m.accent ? A : INK }}>{m.value}</div>
+            </div>
+          )
+        })}
       </div>
 
-      {/* SECTION HEAD */}
-      <div className="flex items-center justify-between mb-3.5">
-        <h2 style={{ fontSize: 16, fontWeight: 700 }}>Последние вопросы</h2>
-        <a onClick={() => onNavigate('new')} style={{ fontSize: 13, fontWeight: 500, color: INK_MUTED, cursor: 'pointer' }}
-          onMouseEnter={e=>e.target.style.color=ACCENT} onMouseLeave={e=>e.target.style.color=INK_MUTED}>
+      {/* SECTION */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: INK }}>Мои вопросы</h2>
+        <button onClick={() => onNavigate('new')} style={{ fontSize: 13, fontWeight: 500, color: M, cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit' }}
+          onMouseEnter={e => e.target.style.color = A} onMouseLeave={e => e.target.style.color = M}>
           Задать вопрос →
-        </a>
+        </button>
       </div>
 
       {/* FILTERS */}
-      <div className="flex gap-1 mb-3 p-1 inline-flex" style={{ background: SURFACE_2, borderRadius: 10, width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: 2, marginBottom: 12, padding: 4, background: S2, borderRadius: 10, width: 'fit-content' }}>
         {filters.map(f => (
           <button key={f.id} onClick={() => onFilterChange(f.id)}
             style={{ fontSize: 13, fontWeight: 500, padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s',
-              color: filter === f.id ? INK : INK_MUTED, background: filter === f.id ? SURFACE : 'transparent', boxShadow: filter === f.id ? '0 1px 2px rgba(0,0,0,.03)' : 'none' }}>
+              color: filter === f.id ? INK : M, background: filter === f.id ? S : 'transparent', boxShadow: filter === f.id ? '0 1px 2px rgba(0,0,0,.03)' : 'none' }}>
             {f.label}
           </button>
         ))}
       </div>
 
-      {/* REQUEST LIST */}
-      <div className="flex flex-col gap-2">
+      {/* LIST */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {filtered.length === 0 ? (
           <div style={{ padding: '56px 0', textAlign: 'center' }}>
-            <div style={{ width: 56, height: 56, margin: '0 auto 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: SURFACE_2, borderRadius: 10 }}>
-              <MessageSquare size={28} style={{ color: INK_LIGHT }} />
+            <div style={{ width: 56, height: 56, margin: '0 auto 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: S2, borderRadius: 12 }}>
+              <MessageSquare size={28} style={{ color: L }} />
             </div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Вопросов пока нет</h2>
-            <p style={{ fontSize: 14, color: INK_MUTED, marginBottom: 22 }}>Просто спросите — и мы начнём</p>
-            <button onClick={() => onNavigate('new')} className="inline-flex items-center gap-2"
-              style={{ background: ACCENT, color: '#fff', border: 'none', padding: '0 26px', height: 50, fontSize: 15, fontWeight: 600, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: INK }}>Вопросов пока нет</h2>
+            <p style={{ fontSize: 14, color: M, marginBottom: 22 }}>Просто спросите — и мы начнём</p>
+            <button onClick={() => onNavigate('new')}
+              style={{ background: A, color: '#fff', border: 'none', padding: '0 24px', height: 48, fontSize: 15, fontWeight: 600, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <MessageCirclePlus size={18} /> Просто спросить
             </button>
           </div>
@@ -123,18 +125,18 @@ export default function Dashboard({ requests, filter, onFilterChange, onOpenDeta
           filtered.map((r, i) => {
             const badge = getBadge(r)
             return (
-              <div key={r.id} onClick={() => onOpenDetail(r.id)} className="animate-fade-up cursor-pointer transition-all flex items-center gap-3.5 p-3.5"
-                style={{ border: `1px solid ${BORDER}`, borderRadius: 10, background: SURFACE, boxShadow: '0 1px 2px rgba(0,0,0,.03)', animationDelay: `${i*0.04}s` }}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--color-border-strong)';e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,.06),0 2px 6px rgba(0,0,0,.04)';e.currentTarget.style.transform='translateY(-1px)'}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.boxShadow='0 1px 2px rgba(0,0,0,.03)';e.currentTarget.style.transform='translateY(0)'}}>
-                <div style={{ width: 90, flexShrink: 0 }}>
-                  <span className={`badge ${badge.cls}`} style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '3px 9px', borderRadius: 6 }}>{badge.text}</span>
+              <div key={r.id} onClick={() => onOpenDetail(r.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14, border: `1px solid ${BD}`, borderRadius: 10, background: S, boxShadow: '0 1px 2px rgba(0,0,0,.03)', cursor: 'pointer', transition: 'all .2s', animation: `fadeUp .4s ease both`, animationDelay: `${i*0.04}s` }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#D4D4D8'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,.06)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = BD; e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,.03)'; e.currentTarget.style.transform = 'translateY(0)' }}>
+                <div style={{ width: 100, flexShrink: 0 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', padding: '3px 9px', borderRadius: 6, background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>{badge.text}</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</div>
-                  <div style={{ fontSize: 13, color: INK_MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.description || ''}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: INK }}>{r.title}</div>
+                  <div style={{ fontSize: 13, color: M, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.description || ''}</div>
                 </div>
-                <div style={{ width: 70, flexShrink: 0, textAlign: 'right', fontSize: 13, color: INK_MUTED }}>{formatDate(r.created_at)}</div>
+                <div style={{ fontSize: 13, color: M, flexShrink: 0 }}>{formatDate(r.created_at)}</div>
               </div>
             )
           })

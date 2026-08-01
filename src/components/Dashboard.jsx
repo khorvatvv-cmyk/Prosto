@@ -31,7 +31,7 @@ export default function Dashboard({ requests, filter, onFilterChange, onOpenDeta
   const getBadge = (r) => {
     if (r.status === 'done') return { text: 'Решено', bg: S2, color: M, border: BD }
     if (r.status === 'waiting') return { text: 'Ожидает', bg: S2, color: INK, border: BD }
-    if (r.level === 'l0') return { text: 'Ответ получен', bg: '#FFF0F7', color: A, border: '#FFF0F7' }
+    if (r.level === 'l0') return { text: 'Ищем решение', bg: '#FFF0F7', color: A, border: '#FFF0F7' }
     return { text: 'Новый', bg: '#FFF0F7', color: A, border: '#FFF0F7' }
   }
 

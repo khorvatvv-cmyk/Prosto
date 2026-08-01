@@ -31,7 +31,7 @@ export default function LoginScreen({ onLogin, onRegister }) {
     }
   }
 
-  const A = '#E50071', AH = '#C70060'
+  const A = '#E50071'
   const INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
 

@@ -50,12 +50,6 @@ export default function App() {
     }
   }
 
-  const goToFiltered = (f) => {
-    setPage('dashboard')
-    setFilter(f)
-    loadRequests()
-  }
-
   const openDetail = async (id) => {
     setCurrentRequestId(id)
     setPage('detail')
@@ -67,9 +61,17 @@ export default function App() {
       await loadRequests()
       goTo('dashboard')
       showToast('Вопрос получили. Ищем решение…')
+      return true
     } catch (e) {
       showToast('Ошибка: ' + e.message)
+      return false
     }
+  }
+
+  const messageManager = async (text) => {
+    await requestsApi.messageManager(text)
+    await loadRequests()
+    showToast('Сообщение передано команде сопровождения')
   }
 
   const evaluateRequest = async (id, helped) => {
@@ -99,9 +101,9 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-[var(--color-bg)]">
-      <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} onLogout={logout} />
+      <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} />
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} />
+        <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} onLogout={logout} />
         <main className="flex-1 overflow-y-auto p-8 md:p-5 pb-20 md:pb-20" style={{ scrollBehavior: 'smooth' }}>
           <div className="max-w-[1060px] mx-auto">
             {page === 'dashboard' && (
@@ -128,19 +130,19 @@ export default function App() {
               />
             )}
             {page === 'important' && (
-              <Important onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} />
+              <Important onOpenManager={() => setManagerOpen(true)} />
             )}
             {page === 'profile' && (
-              <Profile user={user} onOpenManager={() => setManagerOpen(true)} showToast={showToast} onLogout={logout} />
+              <Profile user={user} onOpenManager={() => setManagerOpen(true)} onLogout={logout} />
             )}
             {page === 'notifs' && (
-              <Notifications onNavigate={goTo} />
+              <Notifications requests={requests} onOpenDetail={openDetail} />
             )}
           </div>
         </main>
       </div>
       <MobileTabbar onNavigate={goTo} page={page} />
-      {managerOpen && <ManagerModal onClose={() => setManagerOpen(false)} showToast={showToast} />}
+      {managerOpen && <ManagerModal onClose={() => setManagerOpen(false)} onSend={messageManager} />}
       {toast && <Toast message={toast} />}
     </div>
   )

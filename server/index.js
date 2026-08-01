@@ -2,27 +2,50 @@ import express from 'express'
 import cors from 'cors'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
+import fs from 'fs'
+import { dirname, join, resolve } from 'path'
+import { fileURLToPath } from 'url'
 import {
   createUser, findUserByEmail, findUserById,
   createRequest, getRequestsByUserId, getRequestById, updateRequest,
   addMessage, getMessagesByRequestId,
 } from './db.js'
-import { askAssistant } from './assistant.js'
+import { askAssistant, isAssistantConfigured } from './assistant.js'
 
+const __dirname = dirname(fileURLToPath(import.meta.url))
 const app = express()
-const PORT = process.env.PORT || 3001
-const JWT_SECRET = process.env.JWT_SECRET || 'prosto-secret-key-2026'
+const PORT = Number(process.env.PORT) || 3001
+const JWT_SECRET = process.env.JWT_SECRET?.trim() || 'local-development-only-secret'
+const isProduction = process.env.NODE_ENV === 'production'
 
-app.use(cors({ origin: true, credentials: true }))
-app.use(express.json())
+if (isProduction && !process.env.JWT_SECRET?.trim()) {
+  throw new Error('JWT_SECRET is required in production')
+}
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() })
+const configuredOrigins = process.env.CORS_ORIGIN
+  ?.split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean)
+
+app.disable('x-powered-by')
+app.use(cors({
+  origin: configuredOrigins?.length ? configuredOrigins : true,
+  credentials: false,
+}))
+app.use(express.json({ limit: '1mb' }))
+
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    assistant: isAssistantConfigured() ? 'configured' : 'not_configured',
+    time: new Date().toISOString(),
+  })
 })
 
 function auth(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '')
+  const token = req.headers.authorization?.replace(/^Bearer\s+/i, '')
   if (!token) return res.status(401).json({ error: 'Нет токена' })
+
   try {
     req.userId = jwt.verify(token, JWT_SECRET).userId
     next()
@@ -31,37 +54,52 @@ function auth(req, res, next) {
   }
 }
 
-// === AUTH ===
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase()
+}
+
 app.post('/api/auth/register', (req, res) => {
-  const { email, password, inn, name } = req.body
+  const email = normalizeEmail(req.body.email)
+  const password = String(req.body.password || '')
+  const inn = String(req.body.inn || '').trim()
+  const name = String(req.body.name || '').trim()
+
   if (!email || !password || !inn) {
     return res.status(400).json({ error: 'Email, пароль и ИНН обязательны' })
   }
-  const existing = findUserByEmail(email)
-  if (existing) {
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({ error: 'Укажите корректный email' })
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Пароль должен содержать не менее 8 символов' })
+  }
+  if (!/^\d{10}(\d{2})?$/.test(inn)) {
+    return res.status(400).json({ error: 'ИНН должен содержать 10 или 12 цифр' })
+  }
+  if (findUserByEmail(email)) {
     return res.status(409).json({ error: 'Пользователь с таким email уже существует' })
   }
+
   createUser({ email, password, inn, name })
-  // Загружаем созданного пользователя из БД для получения правильного ID
   const user = findUserByEmail(email)
-  if (!user) {
-    return res.status(500).json({ error: 'Ошибка создания пользователя' })
-  }
+  if (!user) return res.status(500).json({ error: 'Ошибка создания пользователя' })
+
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' })
-  res.json({ token, user: { id: user.id, email: user.email, inn: user.inn, name: user.name } })
+  res.status(201).json({ token, user: publicUser(user) })
 })
 
 app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email и пароль обязательны' })
-  }
+  const email = normalizeEmail(req.body.email)
+  const password = String(req.body.password || '')
+  if (!email || !password) return res.status(400).json({ error: 'Email и пароль обязательны' })
+
   const user = findUserByEmail(email)
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ error: 'Неверный email или пароль' })
   }
+
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' })
-  res.json({ token, user: { id: user.id, email: user.email, inn: user.inn, name: user.name } })
+  res.json({ token, user: publicUser(user) })
 })
 
 app.get('/api/auth/me', auth, (req, res) => {
@@ -70,70 +108,70 @@ app.get('/api/auth/me', auth, (req, res) => {
   res.json({ user })
 })
 
-// === REQUESTS ===
 app.get('/api/requests', auth, (req, res) => {
-  const requests = getRequestsByUserId(req.userId)
-  res.json({ requests })
+  res.json({ requests: getRequestsByUserId(req.userId) })
 })
 
 app.post('/api/requests', auth, (req, res) => {
-  const { title, description } = req.body
-  if (!title?.trim()) {
-    return res.status(400).json({ error: 'Опишите, что случилось' })
-  }
-  const request = createRequest({ userId: req.userId, title: title.trim(), description: description || '' })
+  const title = String(req.body.title || '').trim()
+  const description = String(req.body.description || '').trim()
+  if (!title) return res.status(400).json({ error: 'Опишите, что случилось' })
+  if (title.length > 200) return res.status(400).json({ error: 'Сократите заголовок до 200 символов' })
+  if (description.length > 10_000) return res.status(400).json({ error: 'Сократите описание до 10 000 символов' })
 
-  // Загружаем созданный вопрос из БД для получения правильного ID
+  const request = createRequest({ userId: req.userId, title, description })
   const fullRequest = getRequestById(request.id, req.userId) || request
-
-  // Сохраняем сообщение пользователя
   addMessage({ requestId: fullRequest.id, sender: 'user', text: description || title })
 
-  // Вызываем ассистента L0 (ассистент ПРОСТО)
-  askAssistant(description || title).then(result => {
-    addMessage({
-      requestId: fullRequest.id,
-      sender: 'assistant',
-      text: result.text,
-    })
-    if (!result.available) {
-      updateRequest(fullRequest.id, { status: 'waiting', level: 'l1' })
-    }
-  }).catch(err => {
-    console.error('Assistant error:', err)
+  answerWithAssistant(fullRequest.id, description || title, null)
+  res.status(201).json({ request: fullRequest })
+})
+
+app.post('/api/manager/messages', auth, (req, res) => {
+  const text = String(req.body.text || '').trim()
+  if (!text) return res.status(400).json({ error: 'Сообщение пустое' })
+  if (text.length > 10_000) return res.status(400).json({ error: 'Сократите сообщение до 10 000 символов' })
+
+  const title = text.length > 80 ? `${text.slice(0, 77)}…` : text
+  const request = createRequest({ userId: req.userId, title, description: text })
+  updateRequest(request.id, { status: 'waiting', level: 'l1' })
+  addMessage({ requestId: request.id, sender: 'user', text })
+  addMessage({
+    requestId: request.id,
+    sender: 'system',
+    text: 'Сообщение передано команде сопровождения. Повторно описывать вопрос не нужно.',
   })
 
-  res.json({ request: fullRequest })
+  res.status(201).json({ request: getRequestById(request.id, req.userId) })
 })
 
 app.get('/api/requests/:id', auth, (req, res) => {
   const request = getRequestById(Number(req.params.id), req.userId)
   if (!request) return res.status(404).json({ error: 'Вопрос не найден' })
-  const messages = getMessagesByRequestId(request.id)
-  res.json({ request, messages })
+  res.json({ request, messages: getMessagesByRequestId(request.id) })
 })
 
 app.post('/api/requests/:id/messages', auth, async (req, res) => {
   const request = getRequestById(Number(req.params.id), req.userId)
   if (!request) return res.status(404).json({ error: 'Вопрос не найден' })
+  if (request.status === 'done') return res.status(409).json({ error: 'Вопрос уже решён' })
 
-  const { text } = req.body
-  if (!text?.trim()) return res.status(400).json({ error: 'Сообщение пустое' })
+  const text = String(req.body.text || '').trim()
+  if (!text) return res.status(400).json({ error: 'Сообщение пустое' })
+  if (text.length > 10_000) return res.status(400).json({ error: 'Сократите сообщение до 10 000 символов' })
 
-  // Сохраняем сообщение пользователя
-  addMessage({ requestId: request.id, sender: 'user', text: text.trim() })
+  addMessage({ requestId: request.id, sender: 'user', text })
 
-  // Если уровень l0 — спрашиваем ассистента
-  if (request.level === 'l0' && request.status !== 'done') {
-    const result = await askAssistant(text.trim())
+  if (request.level === 'l0') {
+    const result = await askAssistant(text, request.assistant_thread_id)
     addMessage({ requestId: request.id, sender: 'assistant', text: result.text })
-    if (!result.available) {
-      updateRequest(request.id, { status: 'waiting', level: 'l1' })
-    }
+    updateRequest(request.id, {
+      ...(result.threadId ? { assistant_thread_id: result.threadId } : {}),
+      ...(!result.available ? { status: 'waiting', level: 'l1' } : {}),
+    })
     return res.json({ message: { sender: 'assistant', text: result.text } })
   }
 
-  // Если l1 — просто сохраняем (специалист ответит отдельно)
   res.json({ message: null })
 })
 
@@ -141,17 +179,67 @@ app.post('/api/requests/:id/evaluate', auth, (req, res) => {
   const request = getRequestById(Number(req.params.id), req.userId)
   if (!request) return res.status(404).json({ error: 'Вопрос не найден' })
 
-  const { helped } = req.body
-  if (helped) {
+  if (req.body.helped === true) {
     updateRequest(request.id, { status: 'done' })
     addMessage({ requestId: request.id, sender: 'system', text: 'Вопрос решён' })
-  } else {
+  } else if (req.body.helped === false) {
     updateRequest(request.id, { status: 'waiting', level: 'l1' })
     addMessage({ requestId: request.id, sender: 'system', text: 'Подключаем специалиста. Повторно описывать не нужно.' })
+  } else {
+    return res.status(400).json({ error: 'Передайте helped: true или false' })
   }
-  res.json({ request: updateRequest(request.id, {}) })
+
+  res.json({ request: getRequestById(request.id, req.userId) })
 })
 
-app.listen(PORT, () => {
-  console.log(`просто. server running on http://localhost:${PORT}`)
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' })
 })
+
+const staticDir = resolve(process.env.STATIC_DIR || join(__dirname, '..', 'dist'))
+if (fs.existsSync(join(staticDir, 'index.html'))) {
+  app.use(express.static(staticDir))
+  app.get('*', (_req, res) => res.sendFile(join(staticDir, 'index.html')))
+} else {
+  app.get('/', (_req, res) => {
+    res.status(503).send('Frontend is not built. Run npm run build before starting the server.')
+  })
+}
+
+app.use((error, _req, res, _next) => {
+  console.error('Unhandled server error:', error.message)
+  res.status(500).json({ error: 'Внутренняя ошибка сервера' })
+})
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    inn: user.inn,
+    name: user.name,
+    organization: user.organization,
+  }
+}
+
+async function answerWithAssistant(requestId, message, threadId) {
+  try {
+    const result = await askAssistant(message, threadId)
+    addMessage({ requestId, sender: 'assistant', text: result.text })
+    updateRequest(requestId, {
+      ...(result.threadId ? { assistant_thread_id: result.threadId } : {}),
+      ...(!result.available ? { status: 'waiting', level: 'l1' } : {}),
+    })
+  } catch (error) {
+    console.error(`Assistant background task failed: ${error.message}`)
+    updateRequest(requestId, { status: 'waiting', level: 'l1' })
+  }
+}
+
+const isMainModule = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+if (isMainModule) {
+  app.listen(PORT, () => {
+    console.log(`prosto. server running on http://localhost:${PORT}`)
+  })
+}
+
+export { app }

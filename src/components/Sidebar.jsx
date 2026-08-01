@@ -1,6 +1,6 @@
 import { MessageCircle, Star, Bell, User, Phone, LogOut } from 'lucide-react'
 
-export default function Sidebar({ onNavigate, onFiltered, onOpenManager, page }) {
+export default function Sidebar({ onNavigate, onOpenManager, page, onLogout }) {
   const A = 'var(--color-accent)'
   const INK = 'var(--color-ink)'
   const INK_MUTED = 'var(--color-ink-muted)'
@@ -10,8 +10,8 @@ export default function Sidebar({ onNavigate, onFiltered, onOpenManager, page })
 
   const items = [
     { id: 'dashboard', label: 'Мои вопросы', icon: MessageCircle, action: () => onNavigate('dashboard') },
-    { id: 'important', label: 'Важное для вас', icon: Star, badge: 2, action: () => onNavigate('important') },
-    { id: 'notifs', label: 'Уведомления', icon: Bell, badge: 3, action: () => onNavigate('notifs') },
+    { id: 'important', label: 'Важное для вас', icon: Star, action: () => onNavigate('important') },
+    { id: 'notifs', label: 'Уведомления', icon: Bell, action: () => onNavigate('notifs') },
   ]
 
   const itemStyle = (active) => ({
@@ -59,7 +59,7 @@ export default function Sidebar({ onNavigate, onFiltered, onOpenManager, page })
             <Phone size={18} strokeWidth={1.5} />
             Связаться с менеджером
           </button>
-          <button onClick={() => onNavigate('')} style={itemStyle(false)}
+          <button onClick={onLogout} style={itemStyle(false)}
             onMouseEnter={e => { e.currentTarget.style.background = SURFACE_2; e.currentTarget.style.color = INK }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = INK_MUTED }}>
             <LogOut size={18} strokeWidth={1.5} />

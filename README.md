@@ -1,16 +1,29 @@
-# React + Vite
+# просто.
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Клиентское приложение «Бит.Поддержка»: регистрация, обращения по 1С, ответы L0-ассистента и передача вопроса команде сопровождения.
 
-Currently, two official plugins are available:
+## Состав
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React + Vite — пользовательский интерфейс.
+- Express — API, авторизация и публикация собранного интерфейса.
+- SQLite через sql.js — пользователи, обращения и сообщения.
+- Portarius Assistant API — автоматические ответы и сохранение контекста диалога по `thread_id`.
 
-## React Compiler
+## Локальный запуск
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Установите зависимости: `npm ci` и `npm --prefix server ci`.
+2. Задайте переменные из `.env.example` в окружении. Не записывайте реальные ключи в репозиторий.
+3. Соберите интерфейс: `npm run build`.
+4. Запустите единое приложение: `npm start`.
 
-## Expanding the Oxlint configuration
+По умолчанию приложение доступно на `http://localhost:3001`, проверка состояния — на `/api/health`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Проверки
+
+- `npm run lint`
+- `npm test`
+- `npm run build`
+
+## Render
+
+`render.yaml` собирает интерфейс и сервер как один web service. Значения `JWT_SECRET`, `ASSISTANT_ID` и `ASSISTANT_API_KEY` задаются только в переменных окружения Render.

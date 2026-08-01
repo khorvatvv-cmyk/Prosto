@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Upload, X, MessageCirclePlus } from 'lucide-react'
+import { MessageCirclePlus } from 'lucide-react'
 
 export default function NewRequest({ onSubmit, onCancel }) {
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
-  const [files, setFiles] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -12,10 +11,15 @@ export default function NewRequest({ onSubmit, onCancel }) {
   const INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) { setError('Опишите, что случилось'); return }
     setLoading(true)
-    onSubmit(title.trim(), desc.trim())
+    try {
+      const submitted = await onSubmit(title.trim(), desc.trim())
+      if (!submitted) setError('Не удалось отправить вопрос. Попробуйте ещё раз.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const inputBase = { width: '100%', border: `1px solid ${BD}`, background: S, fontSize: 15, fontFamily: 'inherit', outline: 'none', color: INK, padding: '12px 14px', borderRadius: 8, transition: 'all .2s', boxSizing: 'border-box', boxShadow: '0 1px 2px rgba(0,0,0,.03)' }
@@ -60,30 +64,6 @@ export default function NewRequest({ onSubmit, onCancel }) {
             style={{ ...inputBase, minHeight: 130, resize: 'vertical', lineHeight: 1.6, borderRadius: 10 }}
             onFocus={e => { e.target.style.borderColor = A; e.target.style.boxShadow = '0 0 0 4px rgba(229,0,113,.1)' }}
             onBlur={e => { e.target.style.borderColor = BD; e.target.style.boxShadow = 'none' }} />
-        </div>
-
-        {/* Upload */}
-        <div style={{ marginBottom: 22 }}>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Вложения</label>
-          <div onClick={() => setFiles(p => [...p, { name: `Файл ${p.length+1}.png`, size: '245 КБ' }])}
-            style={{ border: '1.5px dashed #D4D4D8', padding: 24, textAlign: 'center', fontSize: 14, color: M, borderRadius: 10, background: S, cursor: 'pointer', transition: 'all .2s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = A; e.currentTarget.style.background = '#FFF0F7'; e.currentTarget.style.color = A }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#D4D4D8'; e.currentTarget.style.background = S; e.currentTarget.style.color = M }}>
-            <Upload size={20} style={{ display: 'inline', marginRight: 8, verticalAlign: 'middle' }} />
-            Перетащите файлы или нажмите для выбора
-          </div>
-          {files.length > 0 && (
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {files.map((f, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: S2, fontSize: 13, borderRadius: 6 }}>
-                  <span>{f.name} ({f.size})</span>
-                  <button onClick={() => setFiles(p => p.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: M, padding: 0 }}>
-                    <X size={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Actions */}

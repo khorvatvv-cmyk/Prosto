@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react'
 import { ArrowLeft, Phone, Send, CheckCircle2, AlertCircle } from 'lucide-react'
 import { requestsApi } from '../api.js'
+import { useCallback } from 'react'
 
 export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate, onNavigate, showToast }) {
   const [messages, setMessages] = useState([])
@@ -8,16 +9,19 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const [polling, setPolling] = useState(true)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [requestState, setRequestState] = useState(request)
+  const activeRequest = requestState || request
 
-  const A = '#E50071', AH = '#C70060'
+  const A = '#E50071'
   const INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
   const BG = '#FAFAFA'
 
-  async function loadMessages() {
+  const loadMessages = useCallback(async () => {
     try {
       const data = await requestsApi.get(request.id)
       setMessages(data.messages || [])
+      setRequestState(data.request)
       if (data.messages?.some(m => m.sender === 'assistant') || data.request?.status !== 'open' || data.request?.level !== 'l0') {
         setPolling(false)
       }
@@ -26,20 +30,21 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     } finally {
       setLoading(false)
     }
-  }
+  }, [request.id])
 
   useEffect(() => {
     setLoading(true)
     setPolling(true)
     setMessages([])
+    setRequestState(request)
     loadMessages()
-  }, [request.id])
+  }, [request, loadMessages])
 
   useEffect(() => {
     if (!polling) return
     const interval = setInterval(loadMessages, 2000)
     return () => clearInterval(interval)
-  }, [polling, request.id])
+  }, [polling, loadMessages])
 
   const handleSend = async () => {
     const text = input.trim()
@@ -47,21 +52,22 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     setSending(true)
     setInput('')
     try {
-      const data = await requestsApi.sendMessage(request.id, text)
+      const data = await requestsApi.sendMessage(activeRequest.id, text)
       if (data.message) {
         setMessages(prev => [...prev, { sender: 'user', text }, data.message])
       } else {
         setMessages(prev => [...prev, { sender: 'user', text }])
       }
     } catch (e) {
-      showToast('Ошибка отправки')
+      setInput(text)
+      showToast(`Ошибка отправки: ${e.message}`)
     } finally {
       setSending(false)
     }
   }
 
   const handleEvaluate = async (helped) => {
-    await onEvaluate(request.id, helped)
+    await onEvaluate(activeRequest.id, helped)
     if (helped) {
       setMessages(prev => [...prev, { sender: 'system', text: 'Вопрос решён' }])
     } else {
@@ -69,8 +75,8 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     }
   }
 
-  const isL0 = request.level === 'l0' && request.status !== 'done'
-  const isDone = request.status === 'done'
+  const isL0 = activeRequest.level === 'l0' && activeRequest.status !== 'done'
+  const isDone = activeRequest.status === 'done'
   const hasAssistantReply = messages.some(m => m.sender === 'assistant')
 
   const badgeText = isDone ? 'Решено' : isL0 ? 'Ищем решение' : 'В работе'
@@ -99,7 +105,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
           </div>
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Вопрос</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: INK, lineHeight: 1.4 }}>{request.title}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: INK, lineHeight: 1.4 }}>{activeRequest.title}</div>
           </div>
           <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: `1px solid ${BD}` }}>
             <button onClick={onOpenManager}
@@ -114,7 +120,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
         {/* CHAT */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <div style={{ padding: '16px 22px', borderBottom: `1px solid ${BD}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: INK, margin: 0 }}>{request.title}</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: INK, margin: 0 }}>{activeRequest.title}</h3>
             <div style={{ fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>{isL0 ? 'Ассистент' : 'Специалист'}</div>
           </div>
 
@@ -127,14 +133,6 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
               </div>
             ) : (
               <>
-                {/* User initial message */}
-                {request.description && (
-                  <div style={{ maxWidth: 480, padding: '14px 18px', border: `1px solid ${BD}`, borderRadius: 10, background: S2, alignSelf: 'flex-end', fontSize: 14, lineHeight: 1.6, animation: 'fadeUp .3s ease both' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: L, marginBottom: 6, textAlign: 'right' }}>Вы</div>
-                    {request.description}
-                  </div>
-                )}
-
                 {/* Messages from server */}
                 {messages.map((msg, i) => (
                   <div key={i} style={{
@@ -205,7 +203,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
           </div>
 
           {/* COMPOSER */}
-          {!isDone && !isL0 && (
+          {!isDone && (!isL0 || hasAssistantReply) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 22px', borderTop: `1px solid ${BD}`, background: S }}>
               <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSend() }}
                 placeholder="Напишите сообщение…"

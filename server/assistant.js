@@ -1,51 +1,85 @@
-const ASSISTANT_ID = process.env.ASSISTANT_ID || '869836e7-7202-4217-a390-5569855d73eb'
-const ASSISTANT_KEY = process.env.ASSISTANT_API_KEY || 'aipk_eZQG4U2MTxy3pdt-Sv2gBpiKhIwSv1terXk6Ot8OrjA'
-const ASSISTANT_URL = `https://portarius.1bitai.ru/v1/assistants/${ASSISTANT_ID}/chat`
+const ASSISTANT_ID = process.env.ASSISTANT_ID?.trim()
+const ASSISTANT_KEY = process.env.ASSISTANT_API_KEY?.trim()
+const ASSISTANT_BASE_URL = (process.env.ASSISTANT_BASE_URL || 'https://portarius.1bitai.ru').replace(/\/$/, '')
 
-export async function askAssistant(message) {
+const TEMPORARY_UNAVAILABLE_TEXT =
+  'Сервис временно недоступен. Ваш вопрос сохранён — специалист подключится в ближайшее время.'
+
+export function isAssistantConfigured() {
+  return Boolean(ASSISTANT_ID && ASSISTANT_KEY)
+}
+
+export function extractAssistantText(data) {
+  if (typeof data === 'string') return data.trim()
+  if (!data || typeof data !== 'object') return ''
+
+  const candidates = [
+    data.reply,
+    data.response,
+    data.answer,
+    data.output,
+    data.message,
+    data.text,
+    data.data?.reply,
+    data.data?.response,
+  ]
+
+  return candidates.find(value => typeof value === 'string' && value.trim())?.trim() || ''
+}
+
+export async function askAssistant(message, threadId = null) {
+  if (!isAssistantConfigured()) {
+    console.error('Assistant is not configured: ASSISTANT_ID or ASSISTANT_API_KEY is missing')
+    return { text: TEMPORARY_UNAVAILABLE_TEXT, available: false, threadId: null }
+  }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 45_000)
+
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 30000)
-
-    const res = await fetch(ASSISTANT_URL, {
+    const response = await fetch(`${ASSISTANT_BASE_URL}/v1/assistants/${ASSISTANT_ID}/chat`, {
       method: 'POST',
       headers: {
         'X-Assistant-Key': ASSISTANT_KEY,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+        Accept: 'application/json',
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({
+        message,
+        ...(threadId ? { thread_id: threadId } : {}),
+      }),
       signal: controller.signal,
     })
 
-    clearTimeout(timeout)
-
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('Assistant API error:', res.status, err)
-      return {
-        text: 'Сервис временно недоступен. Мы уже работаем над этим. Ваш вопрос сохранён — специалист подключится в ближайшее время.',
-        available: false,
-      }
+    const responseBody = await response.text()
+    let data = null
+    try {
+      data = responseBody ? JSON.parse(responseBody) : null
+    } catch {
+      data = responseBody
     }
 
-    const data = await res.json()
+    if (!response.ok) {
+      console.error(`Assistant API returned HTTP ${response.status}`)
+      return { text: TEMPORARY_UNAVAILABLE_TEXT, available: false, threadId }
+    }
 
-    let responseText = ''
-    if (typeof data === 'string') responseText = data
-    else if (data.response) responseText = data.response
-    else if (data.answer) responseText = data.answer
-    else if (data.output) responseText = data.output
-    else if (data.message) responseText = data.message
-    else if (data.text) responseText = data.text
-    else if (data.reply) responseText = data.reply
-    else responseText = JSON.stringify(data)
+    const text = extractAssistantText(data)
+    if (!text) {
+      console.error('Assistant API returned an empty response')
+      return { text: TEMPORARY_UNAVAILABLE_TEXT, available: false, threadId }
+    }
 
-    return { text: responseText, available: true }
-  } catch (err) {
-    console.error('Assistant fetch error:', err.message)
     return {
-      text: 'Не удалось получить автоматический ответ. Ваш вопрос сохранён — мы подключим специалиста.',
-      available: false,
+      text,
+      available: true,
+      threadId: data?.thread_id || threadId || null,
     }
+  } catch (error) {
+    const reason = error.name === 'AbortError' ? 'request timed out' : error.message
+    console.error(`Assistant request failed: ${reason}`)
+    return { text: TEMPORARY_UNAVAILABLE_TEXT, available: false, threadId }
+  } finally {
+    clearTimeout(timeout)
   }
 }

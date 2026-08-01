@@ -1,4 +1,4 @@
-const API_URL = 'https://prosto-0eq7.onrender.com/api'
+const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
 
 function getToken() {
   return localStorage.getItem('prosto_token')
@@ -62,4 +62,6 @@ export const requestsApi = {
     api(`/requests/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }) }),
   evaluate: (id, helped) =>
     api(`/requests/${id}/evaluate`, { method: 'POST', body: JSON.stringify({ helped }) }),
+  messageManager: (text) =>
+    api('/manager/messages', { method: 'POST', body: JSON.stringify({ text }) }),
 }

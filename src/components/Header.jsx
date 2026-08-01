@@ -1,4 +1,4 @@
-export default function Header({ onNavigate, onOpenManager, page, user, onLogout }) {
+export default function Header({ onNavigate, onOpenManager, page, user }) {
   const ACCENT = 'var(--color-accent)'
   const INK = 'var(--color-ink)'
   const INK_MUTED = 'var(--color-ink-muted)'
@@ -46,7 +46,7 @@ export default function Header({ onNavigate, onOpenManager, page, user, onLogout
           onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.color=ACCENT}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=INK}}>
           <span className="animate-pulse-dot" style={{ width: 8, height: 8, background: ACCENT, borderRadius: '50%', flexShrink: 0 }}></span>
-          <span className="hidden md:inline">Ваш менеджер</span>
+          <span className="hidden md:inline">Команда поддержки</span>
         </button>
 
         <span className="hidden md:inline" style={{ fontSize: 13, color: INK_MUTED, whiteSpace: 'nowrap' }}>

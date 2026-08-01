@@ -6,7 +6,7 @@ import fs from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const dbPath = process.env.DB_PATH || join(__dirname, 'data', 'prosto.db')
-const dataDir = join(dbPath, '..')
+const dataDir = dirname(dbPath)
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
 
 const SQL = await initSqlJs()
@@ -34,6 +34,7 @@ db.run(`
     description TEXT,
     status TEXT DEFAULT 'open',
     level TEXT DEFAULT 'l0',
+    assistant_thread_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS messages (
@@ -47,6 +48,13 @@ db.run(`
 
 function save() {
   fs.writeFileSync(dbPath, Buffer.from(db.export()))
+}
+
+const requestColumns = db.exec('PRAGMA table_info(requests)')
+const requestColumnNames = requestColumns[0]?.values?.map(row => row[1]) || []
+if (!requestColumnNames.includes('assistant_thread_id')) {
+  db.run('ALTER TABLE requests ADD COLUMN assistant_thread_id TEXT')
+  save()
 }
 
 function queryOne(sql, params = []) {
@@ -65,6 +73,14 @@ function queryAll(sql, params = []) {
   while (stmt.step()) rows.push(stmt.getAsObject())
   stmt.free()
   return rows
+}
+
+function execute(sql, params = []) {
+  const stmt = db.prepare(sql)
+  stmt.bind(params)
+  stmt.step()
+  stmt.free()
+  save()
 }
 
 function executeAndGetId(sql, params = []) {
@@ -116,7 +132,7 @@ export function getRequestById(id, userId) {
 
 export function updateRequest(id, updates) {
   for (const [k, v] of Object.entries(updates)) {
-    if (['status', 'level', 'title', 'description'].includes(k)) {
+    if (['status', 'level', 'title', 'description', 'assistant_thread_id'].includes(k)) {
       execute(`UPDATE requests SET ${k} = ? WHERE id = ?`, [v, id])
     }
   }

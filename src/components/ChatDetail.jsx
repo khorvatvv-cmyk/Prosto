@@ -1,441 +1,215 @@
-﻿import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, CheckCircle2, HelpCircle, Phone } from 'lucide-react';
+﻿import { useState, useEffect } from 'react'
+import { ArrowLeft, Phone, Send, CheckCircle2, AlertCircle } from 'lucide-react'
+import { requestsApi } from '../api.js'
 
-/* ─── Метки статусов ─── */
-const STATUS_LABELS = {
-  new: 'Новый',
-  in_progress: 'В работе',
-  resolved: 'Решено',
-  escalated: 'Эскалация',
-};
+export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate, onNavigate, showToast }) {
+  const [messages, setMessages] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [polling, setPolling] = useState(true)
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
 
-/* ─── Цвета статуса ─── */
-const STATUS_COLORS = {
-  new:        { bg: 'rgba(230,0,126,0.12)', color: 'var(--bit-accent, #e6007e)' },
-  in_progress: { bg: 'rgba(134,134,139,0.15)', color: 'var(--bit-muted, #86868b)' },
-  resolved:   { bg: 'rgba(52,199,89,0.12)', color: '#34C759' },
-  escalated:  { bg: 'rgba(26,26,31,0.08)', color: 'var(--bit-ink, #1a1a1f)' },
-};
+  const ACCENT = 'var(--color-accent)'
+  const INK = 'var(--color-ink)'
+  const INK_MUTED = 'var(--color-ink-muted)'
+  const INK_LIGHT = 'var(--color-ink-light)'
+  const SURFACE = 'var(--color-surface)'
+  const SURFACE_2 = 'var(--color-surface-2)'
+  const BORDER = 'var(--color-border)'
 
-/* ================================================================
-   ChatDetail
-   ================================================================ */
-export default function ChatDetail({
-  request,
-  onBack,
-  onOpenManager,
-  onUpdateRequest,
-  onNavigate,
-  showToast,
-}) {
-  const [composerText, setComposerText] = useState('');
-  const [l0Loading, setL0Loading] = useState(false);
-  const [messages, setMessages] = useState([]);
-  const messagesEndRef = useRef(null);
-  const l0TimerRef = useRef(null);
-
-  const status = request?.status || 'new';
-  const channel = request?.channel || 'auto';
-  const isResolved = status === 'resolved';
-  const isSpecialist = channel === 'specialist' || status === 'escalated';
-  const showL0Actions =
-    channel === 'auto' &&
-    !isResolved &&
-    !isSpecialist &&
-    messages.length > 0 &&
-    messages[messages.length - 1]?.type === 'agent' &&
-    !messages.some((m) => m.type === 'system');
-
-  const statusStyle = STATUS_COLORS[status] || STATUS_COLORS.new;
-
-  /* ─── Инициализация сообщений ─── */
-  useEffect(() => {
-    const initialMessages = [];
-
-    if (channel === 'auto' && request?.l0Response) {
-      initialMessages.push({ type: 'agent', text: request.l0Response });
-    } else if (channel === 'auto' && !request?.l0Response) {
-      initialMessages.push({ type: 'l0-loading' });
-      setL0Loading(true);
-      l0TimerRef.current = setTimeout(() => {
-        setMessages((prev) => {
-          const next = [...prev];
-          const idx = next.findIndex((m) => m.type === 'l0-loading');
-          if (idx !== -1) {
-            next[idx] = {
-              type: 'agent',
-              text: 'Здравствуйте! Я — автоответчик «просто.». Уточните, пожалуйста, версию 1С и конфигурацию — в чём именно проблема?',
-            };
-          }
-          return next;
-        });
-        setL0Loading(false);
-      }, 1800);
+  // Загрузка сообщений
+  async function loadMessages() {
+    try {
+      const data = await requestsApi.get(request.id)
+      setMessages(data.messages || [])
+      if (data.messages?.some(m => m.sender === 'assistant') || data.request?.status !== 'open' || data.request?.level !== 'l0') {
+        setPolling(false)
+      }
+    } catch (e) {
+      console.error('Load messages error:', e)
+    } finally {
+      setLoading(false)
     }
-
-    if (isSpecialist) {
-      initialMessages.push({
-        type: 'system',
-        text: 'Подключаем специалиста. Повторно описывать не нужно.',
-      });
-      initialMessages.push({
-        type: 'agent-specialist',
-        text: 'Добрый день! Меня зовут Анна, я специалист поддержки. Изучаю ваш вопрос. Уточните, когда проблема впервые появилась?',
-      });
-    }
-
-    setMessages(
-      initialMessages.length
-        ? initialMessages
-        : [{ type: 'agent', text: 'Здравствуйте! Чем могу помочь?' }]
-    );
-
-    return () => {
-      if (l0TimerRef.current) clearTimeout(l0TimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request?.id]);
+  }
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    setLoading(true)
+    setPolling(true)
+    loadMessages()
+  }, [request.id])
 
-  /* ─── «Да, всё работает» ─── */
-  const handleHelpful = () => {
-    onUpdateRequest(request.id, { status: 'resolved' });
-    setMessages((prev) => [
-      ...prev,
-      { type: 'system', text: 'Вопрос решён. Спасибо за обратную связь!' },
-    ]);
-    showToast('Вопрос решён');
-  };
+  // Polling для L0 ответа
+  useEffect(() => {
+    if (!polling) return
+    const interval = setInterval(loadMessages, 2000)
+    return () => clearInterval(interval)
+  }, [polling, request.id])
 
-  /* ─── «Нет, нужна помощь» ─── */
-  const handleNotHelpful = () => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        type: 'system',
-        text: 'Подключаем специалиста. Повторно описывать не нужно.',
-      },
-      {
-        type: 'agent-specialist',
-        text: 'Здравствуйте! Я специалист поддержки. Изучаю детали вопроса. Уточните, когда проблема возникла?',
-      },
-    ]);
-    onUpdateRequest(request.id, { status: 'escalated', channel: 'specialist' });
-    showToast('Передано специалисту');
-  };
+  const handleSend = async () => {
+    const text = input.trim()
+    if (!text) return
+    setSending(true)
+    setInput('')
+    try {
+      const data = await requestsApi.sendMessage(request.id, text)
+      if (data.message) {
+        setMessages(prev => [...prev, { sender: 'user', text }, data.message])
+      } else {
+        setMessages(prev => [...prev, { sender: 'user', text }])
+      }
+    } catch (e) {
+      showToast('Ошибка отправки')
+    } finally {
+      setSending(false)
+    }
+  }
 
-  const handleSendComposer = () => {
-    if (!composerText.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      { type: 'user', text: composerText.trim() },
-    ]);
-    setComposerText('');
-  };
+  const handleEvaluate = async (helped) => {
+    await onEvaluate(request.id, helped)
+    if (helped) {
+      setMessages(prev => [...prev, { sender: 'system', text: 'Вопрос решён' }])
+    } else {
+      setMessages(prev => [...prev, { sender: 'system', text: 'Подключаем специалиста. Повторно описывать не нужно.' }])
+    }
+  }
+
+  const isL0 = request.level === 'l0' && request.status !== 'done'
+  const isDone = request.status === 'done'
+  const hasAssistantReply = messages.some(m => m.sender === 'assistant')
+
+  const badgeClass = isDone ? 'badge-done' : isL0 ? 'badge-new' : 'badge-waiting'
+  const badgeText = isDone ? 'Решено' : isL0 ? 'Ищем решение' : 'Специалист'
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        minHeight: 0,
-      }}
-    >
-      {/* ─── Верхняя панель ─── */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 20px',
-          borderBottom: '1px solid var(--bit-border, #e5e5e7)',
-          background: 'var(--bit-surface, #fff)',
-          flexShrink: 0,
-        }}
-      >
-        <button
-          onClick={onBack}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            background: 'none',
-            border: 'none',
-            color: 'var(--bit-ink, #1a1a1f)',
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: 'pointer',
-            padding: '6px 10px',
-            borderRadius: 8,
-            transition: 'background .15s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--bit-tab-bg, #ececee)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'none';
-          }}
-        >
-          <ArrowLeft size={16} />
-          Назад к вопросам
-        </button>
-      </div>
+    <div>
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium border-none bg-transparent cursor-pointer mb-4 px-3 py-1.5"
+        style={{ color: INK_MUTED, borderRadius: 6, transition: 'all .2s', fontFamily: 'inherit' }}
+        onMouseEnter={e=>{e.currentTarget.style.color=INK;e.currentTarget.style.background=SURFACE_2}}
+        onMouseLeave={e=>{e.currentTarget.style.color=INK_MUTED;e.currentTarget.style.background='transparent'}}>
+        <ArrowLeft size={16} /> Назад к вопросам
+      </button>
 
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        {/* ═══ Мета-панель ═══ */}
-        <aside
-          className="chat-meta-panel"
-          style={{
-            width: 260,
-            flexShrink: 0,
-            borderRight: '1px solid var(--bit-border, #e5e5e7)',
-            background: 'var(--bit-surface, #fff)',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-            overflowY: 'auto',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--bit-muted, #86868b)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>
-              Статус
-            </div>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 10px',
-                borderRadius: '999px',
-                fontSize: 12,
-                fontWeight: 600,
-                background: statusStyle.bg,
-                color: statusStyle.color,
-              }}
-            >
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusStyle.color }} />
-              {STATUS_LABELS[status] || status}
-            </span>
+      <div className="flex border overflow-hidden" style={{ borderColor: BORDER, borderRadius: 14, height: 'calc(100vh - 56px - 32px - 32px - 48px)', background: SURFACE, boxShadow: '0 2px 4px rgba(0,0,0,.05)' }}>
+        {/* META */}
+        <div className="hidden md:flex flex-col p-6 overflow-y-auto" style={{ width: 260, borderRight: `1px solid ${BORDER}`, background: SURFACE }}>
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>Статус</div>
+            <span className={`badge ${badgeClass}`} style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '3px 9px', borderRadius: 6 }}>{badgeText}</span>
           </div>
-
-          <MetaField
-            label="Канал"
-            value={channel === 'auto' ? 'Автоматический ответ' : 'Специалист'}
-          />
-          <MetaField label="Дата создания" value={request?.date || '—'} />
-          <MetaField label="Тема" value={request?.title || '—'} />
-
-          <div style={{ marginTop: 'auto', paddingTop: 16 }}>
-            <button
-              onClick={onOpenManager}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                padding: '10px 14px',
-                borderRadius: 10,
-                border: '1px solid var(--bit-border, #e5e5e7)',
-                background: 'var(--bit-surface, #fff)',
-                color: 'var(--bit-ink, #1a1a1f)',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all .15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--bit-tab-bg, #ececee)';
-                e.currentTarget.style.borderColor = 'var(--bit-accent, #e6007e)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--bit-surface, #fff)';
-                e.currentTarget.style.borderColor = 'var(--bit-border, #e5e5e7)';
-              }}
-            >
-              <Phone size={15} />
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>Канал</div>
+            <div style={{ fontSize: 14 }}>{isL0 ? 'Ассистент ПРОСТО' : 'Специалист'}</div>
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>Вопрос</div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>{request.title}</div>
+          </div>
+          <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: `1px solid ${BORDER}` }}>
+            <button onClick={onOpenManager} className="w-full text-left px-3 py-2 border-none bg-transparent cursor-pointer"
+              style={{ color: INK_MUTED, fontSize: 14, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
+              onMouseEnter={e=>{e.currentTarget.style.background=SURFACE_2;e.currentTarget.style.color=INK}}
+              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=INK_MUTED}}>
+              <Phone size={16} style={{ display: 'inline', marginRight: 8, verticalAlign: 'middle' }} />
               Связаться с менеджером
             </button>
           </div>
-        </aside>
+        </div>
 
-        {/* ═══ Область чата ═══ */}
-        <section
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'var(--bit-bg, #f7f7f8)',
-          }}
-        >
-          {/* Шапка */}
-          <div
-            style={{
-              padding: '14px 24px',
-              borderBottom: '1px solid var(--bit-border, #e5e5e7)',
-              background: 'var(--bit-surface, #fff)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--bit-ink, #1a1a1f)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {request?.title || 'Вопрос'}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--bit-muted, #86868b)', marginTop: 2 }}>
-                {channel === 'auto' ? 'Автоматический ответ' : 'Специалист поддержки'}
-              </div>
-            </div>
-            <span
-              style={{
-                padding: '4px 10px',
-                borderRadius: '999px',
-                fontSize: 12,
-                fontWeight: 600,
-                background: channel === 'auto' ? 'rgba(230,0,126,0.1)' : 'rgba(26,26,31,0.08)',
-                color: channel === 'auto' ? 'var(--bit-accent, #e6007e)' : 'var(--bit-ink, #1a1a1f)',
-              }}
-            >
-              {channel === 'auto' ? 'Авто' : 'Специалист'}
-            </span>
+        {/* CHAT */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex items-center justify-between p-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700 }}>{request.title}</h3>
+            <div style={{ fontSize: 11, fontWeight: 600, color: INK_LIGHT, textTransform: 'uppercase' }}>{isL0 ? 'Ассистент' : 'Специалист'}</div>
           </div>
 
-          {/* Сообщения */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {messages.map((msg, i) => {
-              if (msg.type === 'l0-loading') {
-                return (
-                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <AgentAvatar variant="auto" />
-                    <div style={{ background: 'var(--bit-surface, #fff)', border: '1px solid var(--bit-border, #e5e5e7)', borderRadius: '0 12px 12px 12px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span className="l0-pulse-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bit-accent, #e6007e)' }} />
-                      <span className="l0-pulse-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bit-accent, #e6007e)', animationDelay: '0.2s' }} />
-                      <span className="l0-pulse-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bit-accent, #e6007e)', animationDelay: '0.4s' }} />
-                      <span style={{ fontSize: 13, color: 'var(--bit-muted, #86868b)', marginLeft: 4 }}>Ищем решение…</span>
-                    </div>
+          <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-3" style={{ background: 'var(--color-bg)' }}>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 20, color: INK_MUTED, fontSize: 14 }}>
+                <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', marginRight: 3 }}></span>
+                <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', marginRight: 3, animationDelay: '.2s' }}></span>
+                <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', animationDelay: '.4s' }}></span>
+              </div>
+            ) : (
+              <>
+                {/* User's initial message */}
+                {request.description && (
+                  <div className="animate-fade-up" style={{ maxWidth: 480, padding: '14px 18px', border: `1px solid ${BORDER}`, borderRadius: 10, background: SURFACE_2, alignSelf: 'flex-end', fontSize: 14, lineHeight: 1.6, boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: INK_LIGHT, marginBottom: 6, textAlign: 'right' }}>Вы</div>
+                    {request.description}
                   </div>
-                );
-              }
-              if (msg.type === 'system') {
-                return (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 12, color: 'var(--bit-muted, #86868b)', background: 'var(--bit-tab-bg, #ececee)', padding: '6px 14px', borderRadius: '999px' }}>
-                      {msg.text}
-                    </span>
-                  </div>
-                );
-              }
-              const isUser = msg.type === 'user';
-              const isSpecialistAgent = msg.type === 'agent-specialist';
-              return (
-                <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', gap: 10 }}>
-                  {!isUser && <AgentAvatar variant={isSpecialistAgent ? 'specialist' : 'auto'} />}
-                  <div style={{ maxWidth: '70%', background: isUser ? 'var(--bit-tab-bg, #ececee)' : 'var(--bit-surface, #fff)', border: '1px solid var(--bit-border, #e5e5e7)', borderRadius: isUser ? '12px 0 12px 12px' : '0 12px 12px 12px', padding: '12px 16px', fontSize: 14, lineHeight: 1.5, color: 'var(--bit-ink, #1a1a1f)' }}>
+                )}
+
+                {/* Messages */}
+                {messages.map((msg, i) => (
+                  <div key={i} className="animate-fade-up" style={{
+                    maxWidth: 480, padding: '14px 18px', border: `1px solid ${msg.sender==='system'?SURFACE_2:BORDER}`,
+                    borderRadius: 10, fontSize: 14, lineHeight: 1.6, boxShadow: '0 1px 2px rgba(0,0,0,.03)',
+                    background: msg.sender === 'user' ? SURFACE_2 : msg.sender === 'system' ? SURFACE_2 : SURFACE,
+                    alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+                    textAlign: msg.sender === 'system' ? 'center' : 'left',
+                    color: msg.sender === 'system' ? INK_MUTED : INK,
+                  }}>
+                    {msg.sender === 'assistant' && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: ACCENT, marginBottom: 6 }}>Ассистент ПРОСТО</div>}
+                    {msg.sender === 'user' && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: INK_LIGHT, marginBottom: 6, textAlign: 'right' }}>Вы</div>}
                     {msg.text}
                   </div>
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
+                ))}
+
+                {/* L0 loading — waiting for assistant */}
+                {isL0 && !hasAssistantReply && !loading && (
+                  <div style={{ textAlign: 'center', padding: 20, color: INK_MUTED, fontSize: 14 }}>
+                    <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', marginRight: 3 }}></span>
+                    <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', marginRight: 3, animationDelay: '.2s' }}></span>
+                    <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', animationDelay: '.4s' }}></span>
+                    <div style={{ marginTop: 8 }}>Ассистент ПРОСТО ищет решение…</div>
+                  </div>
+                )}
+
+                {/* Evaluation buttons */}
+                {isL0 && hasAssistantReply && !isDone && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 13, color: INK_MUTED, marginBottom: 10 }}>Помогло решение?</div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => handleEvaluate(true)} className="inline-flex items-center gap-2 px-5 py-2.5 border cursor-pointer"
+                        style={{ borderColor: 'var(--color-border-strong)', background: SURFACE, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
+                        onMouseEnter={e=>{e.currentTarget.style.background=INK;e.currentTarget.style.color='#fff'}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=SURFACE;e.currentTarget.style.color=INK}}>
+                        <CheckCircle2 size={16} /> Да, всё работает
+                      </button>
+                      <button onClick={() => handleEvaluate(false)} className="inline-flex items-center gap-2 px-5 py-2.5 border cursor-pointer"
+                        style={{ borderColor: 'var(--color-border-strong)', background: SURFACE, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
+                        onMouseEnter={e=>{e.currentTarget.style.background=ACCENT;e.currentTarget.style.color='#fff';e.currentTarget.style.borderColor=ACCENT}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=SURFACE;e.currentTarget.style.color=INK;e.currentTarget.style.borderColor='var(--color-border-strong)'}}>
+                        <AlertCircle size={16} /> Нет, нужна помощь
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* Футер: кнопки L0 / решено / композер */}
-          {showL0Actions && (
-            <div style={{ padding: '14px 24px', borderTop: '1px solid var(--bit-border, #e5e5e7)', background: 'var(--bit-surface, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexShrink: 0 }}>
-              <button onClick={handleHelpful} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, border: '1px solid #34C759', background: 'rgba(52,199,89,0.08)', color: '#34C759', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all .15s ease' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(52,199,89,0.16)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(52,199,89,0.08)'; }}>
-                <CheckCircle2 size={18} />
-                Да, всё работает
-              </button>
-              <button onClick={handleNotHelpful} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, border: '1px solid var(--bit-accent, #e6007e)', background: 'rgba(230,0,126,0.06)', color: 'var(--bit-accent, #e6007e)', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all .15s ease' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(230,0,126,0.14)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(230,0,126,0.06)'; }}>
-                <HelpCircle size={18} />
-                Нет, нужна помощь
+          {/* COMPOSER */}
+          {!isDone && !isL0 && (
+            <div className="flex items-center gap-2.5 p-4" style={{ borderTop: `1px solid ${BORDER}`, background: SURFACE }}>
+              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleSend()}}
+                placeholder="Напишите сообщение…"
+                style={{ flex: 1, border: `1px solid ${BORDER}`, background: SURFACE_2, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: INK, padding: '11px 15px', borderRadius: 6, transition: 'all .2s' }}
+                onFocus={e=>{e.target.style.borderColor=ACCENT;e.target.style.boxShadow='0 0 0 4px var(--color-accent-glow)'}}
+                onBlur={e=>{e.target.style.borderColor=BORDER;e.target.style.boxShadow='none'}} />
+              <button onClick={handleSend} disabled={!input.trim() || sending}
+                style={{ width: 42, height: 42, background: input.trim() ? ACCENT : 'var(--color-surface-3)', border: 'none', cursor: input.trim()?'pointer':'not-allowed', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
+                <Send size={18} style={{ color: '#fff' }} />
               </button>
             </div>
           )}
-
-          {isResolved && !showL0Actions && (
-            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--bit-border, #e5e5e7)', background: 'var(--bit-surface, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#34C759', fontSize: 14, fontWeight: 600 }}>
-              <CheckCircle2 size={18} />
-              Вопрос решён
+          {isDone && (
+            <div className="text-center p-4" style={{ borderTop: `1px solid ${BORDER}`, background: SURFACE, fontSize: 14, color: INK_MUTED }}>
+              Вопрос решён. <a onClick={()=>onNavigate('new')} style={{ color: ACCENT, fontWeight: 600, cursor: 'pointer' }}>Задать новый?</a>
             </div>
           )}
-
-          {!isResolved && !showL0Actions && !l0Loading && (
-            <div style={{ padding: '12px 24px', borderTop: '1px solid var(--bit-border, #e5e5e7)', background: 'var(--bit-surface, #fff)', display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
-              <input
-                type="text"
-                value={composerText}
-                onChange={(e) => setComposerText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendComposer()}
-                placeholder={isSpecialist ? 'Напишите специалисту…' : 'Напишите сообщение…'}
-                style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--bit-border, #e5e5e7)', background: 'var(--bit-bg, #f7f7f8)', fontSize: 14, color: 'var(--bit-ink, #1a1a1f)', outline: 'none', transition: 'border-color .15s ease' }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--bit-accent, #e6007e)'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--bit-border, #e5e5e7)'; }}
-              />
-              <button
-                onClick={handleSendComposer}
-                disabled={!composerText.trim()}
-                style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: composerText.trim() ? 'var(--bit-accent, #e6007e)' : 'var(--bit-tab-bg, #ececee)', color: composerText.trim() ? '#fff' : 'var(--bit-muted, #86868b)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: composerText.trim() ? 'pointer' : 'default', transition: 'background .15s, transform .1s', boxShadow: composerText.trim() ? '0 2px 8px rgba(230,0,126,.3)' : 'none' }}
-                onMouseEnter={(e) => { if (composerText.trim()) e.currentTarget.style.transform = 'scale(1.06)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-              >
-                <Send size={17} />
-              </button>
-            </div>
-          )}
-        </section>
-      </div>
-
-      <style>{`
-        .l0-pulse-dot {
-          animation: l0Pulse 1.2s ease-in-out infinite;
-        }
-        @keyframes l0Pulse {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-        @media (max-width: 767px) {
-          .chat-meta-panel { display: none !important; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-/* ================================================================
-   Вспомогательные компоненты
-   ================================================================ */
-function MetaField({ label, value }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, color: 'var(--bit-muted, #86868b)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 14, color: 'var(--bit-ink, #1a1a1f)', fontWeight: 500, wordBreak: 'break-word' }}>
-        {value}
+        </div>
       </div>
     </div>
-  );
-}
-
-function AgentAvatar({ variant = 'auto' }) {
-  const isSpec = variant === 'specialist';
-  return (
-    <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, background: isSpec ? 'linear-gradient(135deg, #1a1a1f, #3a3a40)' : 'linear-gradient(135deg, var(--bit-accent, #e6007e), #b0005a)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
-      {isSpec ? 'СП' : 'А'}
-    </div>
-  );
+  )
 }

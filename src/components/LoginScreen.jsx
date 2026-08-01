@@ -1,210 +1,199 @@
-import { useState } from 'react';
-import { Check, MessageCircle, ArrowRight } from 'lucide-react';
+import { useState } from 'react'
+import { Mail, Lock, Building, User, Check, MessageCircle } from 'lucide-react'
 
-export default function LoginScreen({ onLogin }) {
-  const [contact, setContact] = useState('');
+export default function LoginScreen({ onLogin, onRegister }) {
+  const [tab, setTab] = useState('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [inn, setInn] = useState('')
+  const [name, setName] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onLogin?.({ contact });
-  };
+  const handleSubmit = async (e) => {
+    e?.preventDefault?.()
+    setError('')
+    setLoading(true)
+    try {
+      if (tab === 'login') {
+        await onLogin(email, password)
+      } else {
+        if (!inn.trim()) throw new Error('Укажите ИНН организации')
+        await onRegister(email, password, inn, name)
+      }
+    } catch (err) {
+      setError(err.message || 'Ошибка')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const ACCENT = 'var(--color-accent)'
+  const INK = 'var(--color-ink)'
+  const INK_MUTED = 'var(--color-ink-muted)'
+  const INK_LIGHT = 'var(--color-ink-light)'
+  const SURFACE = 'var(--color-surface)'
+  const SURFACE_2 = 'var(--color-surface-2)'
+  const BORDER = 'var(--color-border)'
+
+  const inputStyle = {
+    width: '100%', height: 46, border: `1px solid ${BORDER}`, background: SURFACE,
+    fontSize: 15, fontFamily: 'inherit', outline: 'none', color: INK,
+    padding: '0 14px 0 40px', borderRadius: 8, transition: 'all .2s',
+    boxSizing: 'border-box',
+  }
+  const focusStyle = (e) => {
+    e.target.style.borderColor = ACCENT
+    e.target.style.boxShadow = '0 0 0 4px var(--color-accent-glow)'
+  }
+  const blurStyle = (e) => {
+    e.target.style.borderColor = BORDER
+    e.target.style.boxShadow = 'none'
+  }
 
   return (
-    <div
-      style={{
-        '--color-accent': '#E50071',
-        '--color-accent-glow': 'rgba(229,0,113,0.18)',
-        '--color-ink': '#18181B',
-        '--color-bg': '#FAFAFA',
-        '--color-surface': '#FFFFFF',
-        '--color-surface-2': '#F4F4F5',
-        '--color-border': '#E4E4E7',
-        '--color-muted': '#71717A',
-        '--color-muted-foreground': '#A1A1AA',
-      }}
-      className="flex min-h-screen w-full font-sans antialiased"
-    >
-      <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .fade-up {
-          animation: fadeUp .6s cubic-bezier(.21,1.02,.43,1) both;
-        }
-        .focus-ring {
-          transition: box-shadow .2s ease, border-color .2s ease;
-        }
-        .focus-ring:focus {
-          box-shadow: 0 0 0 4px var(--color-accent-glow);
-          border-color: var(--color-accent);
-          outline: none;
-        }
-        .shadow-card {
-          box-shadow: 0 4px 24px rgba(24,24,27,0.06), 0 1px 4px rgba(24,24,27,0.04);
-        }
-        .shadow-card-hover:hover {
-          box-shadow: 0 8px 32px rgba(24,24,27,0.10), 0 2px 8px rgba(24,24,27,0.06);
-        }
-      `}</style>
-
-      {/* Левая панель — форма */}
-      <aside
-        className="fade-up flex w-full max-w-[480px] shrink-0 flex-col justify-center bg-[var(--color-surface)] px-10 py-12"
-        style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
-      >
-        {/* Логотип + бренд */}
-        <div className="mb-8 flex items-center gap-3 select-none">
-          <img
-            src="/logo.png"
-            alt="просто."
-            className="h-10 w-10 rounded-[10px]"
-            style={{ boxShadow: '0 2px 8px rgba(229,0,113,0.15)' }}
-          />
-          <div>
-            <div className="text-[28px] font-bold tracking-tight" style={{ color: 'var(--color-ink)' }}>
-              просто<span style={{ color: 'var(--color-accent)' }}>.</span>
-            </div>
-            <div className="text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-              Поддержка Первого Бита
-            </div>
-          </div>
+    <div className="flex min-h-screen h-screen">
+      {/* LEFT — FORM */}
+      <div className="flex-0 0 480px max-w-[480px] flex flex-col justify-center px-12 py-12 relative overflow-y-auto" style={{ background: SURFACE }}>
+        <div className="absolute top-7 left-12">
+          <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: INK }}>
+            просто<span style={{ color: ACCENT }}>.</span>
+          </span>
         </div>
 
-        {/* Обещание */}
-        <p
-          className="mb-8 text-sm font-medium italic leading-relaxed"
-          style={{ color: 'var(--color-accent)' }}
-        >
-          Сложное — нам. Вам — просто.
-        </p>
+        <div className="flex border-b mb-7" style={{ borderColor: BORDER }}>
+          <button onClick={() => { setTab('login'); setError('') }}
+            style={{ fontSize: 14, fontWeight: 500, padding: '10px 0', marginRight: 28, cursor: 'pointer',
+              border: 'none', background: 'none', fontFamily: 'inherit', borderBottom: `2px solid ${tab==='login'?ACCENT:'transparent'}`,
+              color: tab==='login'?INK:INK_LIGHT }}>
+            Вход
+          </button>
+          <button onClick={() => { setTab('register'); setError('') }}
+            style={{ fontSize: 14, fontWeight: 500, padding: '10px 0', cursor: 'pointer',
+              border: 'none', background: 'none', fontFamily: 'inherit', borderBottom: `2px solid ${tab==='register'?ACCENT:'transparent'}`,
+              color: tab==='register'?INK:INK_LIGHT }}>
+            Регистрация
+          </button>
+        </div>
 
-        {/* Форма */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-              Email или телефон
-            </label>
-            <div className="relative">
-              <MessageCircle
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
-                size={18}
-                style={{ color: 'var(--color-muted-foreground)' }}
-              />
-              <input
-                type="text"
-                required
-                value={contact}
-                onChange={(e) => setContact(e.target.value)}
-                placeholder="ivan@company.ru / +7 900 123-45-67"
-                className="focus-ring w-full rounded-[12px] border bg-[var(--color-surface)] py-3.5 pl-11 pr-4 text-sm outline-none"
-                style={{
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-ink)',
-                  '--tw-placeholder-color': 'var(--color-muted-foreground)',
-                }}
-              />
-            </div>
+        <div style={{ maxWidth: 360, width: '100%' }} className="animate-fade-up">
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: ACCENT, marginBottom: 12 }}>
+            Поддержка Первого Бита
           </div>
-
-          <button
-            type="submit"
-            className="shadow-card-hover group flex items-center justify-center gap-2 rounded-[12px] py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 active:translate-y-0"
-            style={{ backgroundColor: 'var(--color-accent)' }}
-          >
-            <span>Просто спросить</span>
-            <ArrowRight
-              size={18}
-              className="transition-transform group-hover:translate-x-0.5"
-            />
-          </button>
-        </form>
-
-        <p className="mt-8 text-center text-xs" style={{ color: 'var(--color-muted)' }}>
-          Нажимая «Просто спросить», вы принимаете{' '}
-          <button
-            type="button"
-            className="font-medium underline underline-offset-2 transition-colors hover:opacity-80"
-            style={{ color: 'var(--color-accent)' }}
-          >
-            условия обработки данных
-          </button>
-        </p>
-      </aside>
-
-      {/* Правая панель — бренд-блок */}
-      <section
-        className="fade-up relative flex flex-1 flex-col justify-between overflow-hidden px-16 py-14"
-        style={{
-          background:
-            'radial-gradient(ellipse at 25% 30%, rgba(229,0,113,0.10) 0%, rgba(229,0,113,0.02) 50%, var(--color-bg) 100%)',
-        }}
-      >
-        {/* Декоративное пятно */}
-        <div
-          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full"
-          style={{ background: 'rgba(229,0,113,0.10)', filter: 'blur(100px)' }}
-        />
-        <div
-          className="pointer-events-none absolute -bottom-32 -left-16 h-72 w-72 rounded-full"
-          style={{ background: 'rgba(229,0,113,0.06)', filter: 'blur(80px)' }}
-        />
-
-        {/* Контент */}
-        <div className="relative z-10 flex flex-col justify-center min-h-full">
-          <h1
-            className="text-[42px] font-bold leading-[1.15] tracking-tight"
-            style={{ color: 'var(--color-ink)' }}
-          >
-            Просто расскажи.
-            <br />
-            <span style={{ color: 'var(--color-accent)' }}>Дальше — мы.</span>
+          <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-.03em', marginBottom: 6, color: INK }}>
+            {tab === 'login' ? 'С возвращением' : 'Начните получать помощь'}
           </h1>
-
-          <p className="mt-5 max-w-md text-base leading-relaxed" style={{ color: 'var(--color-muted)' }}>
-            Расскажите своими словами, что произошло. Мы разберёмся, подключим нужных
-            специалистов и доведём вопрос до результата.
+          <p style={{ fontSize: 15, color: INK_MUTED, marginBottom: 28, lineHeight: 1.6 }}>
+            {tab === 'login' ? 'Опишите вопрос один раз — и не возвращайтесь к нему' : 'Расскажите, что произошло. Дальше — мы.'}
           </p>
 
-          <ul className="mt-10 flex flex-col gap-5">
-            {[
-              ['Один раз описали — дальше мы', 'Ваше обращение берём в работу без лишних уточнений и переводов'],
-              ['Не нужно знать, к кому обратиться', 'Сами определим эксперта и распределим задачи внутри команды'],
-              ['Контекст не теряется при передаче', 'Вся история вопроса доступна вам и специалистам в один клик'],
-            ].map(([title, desc]) => (
-              <li key={title} className="flex items-start gap-3.5">
-                <span
-                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px]"
-                  style={{ background: 'var(--color-accent-glow)' }}
-                >
-                  <Check size={16} style={{ color: 'var(--color-accent)' }} />
-                </span>
-                <div>
-                  <div className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
-                    {title}
-                  </div>
-                  <div className="mt-0.5 text-sm leading-relaxed" style={{ color: 'var(--color-muted)' }}>
-                    {desc}
-                  </div>
+          <form onSubmit={handleSubmit}>
+            {tab === 'register' && (
+              <div style={{ marginBottom: 18, position: 'relative' }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>ФИО</label>
+                <div style={{ position: 'relative' }}>
+                  <User size={16} style={{ position: 'absolute', left: 14, top: 15, color: INK_LIGHT }} />
+                  <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Как к вам обращаться"
+                    style={inputStyle} onFocus={focusStyle} onBlur={blurStyle} />
                 </div>
-              </li>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 18, position: 'relative' }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>Email</label>
+              <div style={{ position: 'relative' }}>
+                <Mail size={16} style={{ position: 'absolute', left: 14, top: 15, color: INK_LIGHT }} />
+                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required
+                  style={inputStyle} onFocus={focusStyle} onBlur={blurStyle} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 18, position: 'relative' }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>Пароль</label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} style={{ position: 'absolute', left: 14, top: 15, color: INK_LIGHT }} />
+                <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required
+                  style={inputStyle} onFocus={focusStyle} onBlur={blurStyle} />
+              </div>
+            </div>
+
+            {tab === 'register' && (
+              <div style={{ marginBottom: 18, position: 'relative' }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>ИНН организации</label>
+                <div style={{ position: 'relative' }}>
+                  <Building size={16} style={{ position: 'absolute', left: 14, top: 15, color: INK_LIGHT }} />
+                  <input type="text" value={inn} onChange={e=>setInn(e.target.value.replace(/\D/g,'').slice(0,12))} placeholder="10 или 12 цифр" required
+                    style={inputStyle} onFocus={focusStyle} onBlur={blurStyle} />
+                </div>
+                <div style={{ fontSize: 13, color: INK_MUTED, marginTop: 6 }}>Укажите ИНН — мы идентифицируем ваш договор</div>
+              </div>
+            )}
+
+            {error && (
+              <div style={{ fontSize: 13, color: ACCENT, marginBottom: 14, padding: '8px 12px', background: 'var(--color-accent-tint)', borderRadius: 6 }}>
+                {error}
+              </div>
+            )}
+
+            <button type="submit" disabled={loading}
+              style={{ width: '100%', height: 50, background: loading?'var(--color-surface-3)':ACCENT, color: '#fff', border: 'none',
+                borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: loading?'not-allowed':'pointer', fontFamily: 'inherit', transition: 'all .2s' }}>
+              {loading ? 'Подождите…' : (tab === 'login' ? 'Войти' : 'Создать аккаунт')}
+            </button>
+          </form>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '22px 0', fontSize: 13, color: INK_LIGHT }}>
+            <div style={{ flex: 1, height: 1, background: BORDER }} />
+            или
+            <div style={{ flex: 1, height: 1, background: BORDER }} />
+          </div>
+
+          <button onClick={() => { setTab('login'); setError('') }}
+            style={{ width: '100%', height: 46, background: SURFACE, color: INK, border: `1px solid var(--color-border-strong)`,
+              borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {tab === 'register' ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
+          </button>
+        </div>
+      </div>
+
+      {/* RIGHT — BRAND */}
+      <div className="flex-1 hidden md:flex items-center justify-center relative overflow-hidden"
+        style={{ background: `linear-gradient(135deg, ${SURFACE} 0%, ${SURFACE_2} 100%)` }}>
+        <div style={{ position: 'absolute', top: '-20%', right: '-10%', width: '60%', height: '60%',
+          background: `radial-gradient(circle, var(--color-accent-tint) 0%, transparent 70%)`, opacity: .6 }} />
+        <div style={{ position: 'absolute', bottom: '-10%', left: '-5%', width: '40%', height: '40%',
+          background: `radial-gradient(circle, ${SURFACE_2} 0%, transparent 70%)`, opacity: .4 }} />
+        <div className="animate-float" style={{ position: 'absolute', top: '20%', right: '10%', width: 300, height: 300,
+          background: 'var(--color-accent-tint)', borderRadius: '50%', filter: 'blur(80px)', opacity: .4 }} />
+
+        <div className="animate-fade-up relative z-10 max-w-[420px]">
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: ACCENT, marginBottom: 16 }}>
+            ПРОДУКТ
+          </div>
+          <h1 style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-.035em', lineHeight: 1.05, marginBottom: 20, color: INK }}>
+            просто<span style={{ color: ACCENT }}>.</span>
+          </h1>
+          <p style={{ fontSize: 16, color: INK_MUTED, lineHeight: 1.7, marginBottom: 16 }}>
+            Расскажите своими словами, что произошло. Мы разберёмся, подключим нужных специалистов и доведём вопрос до результата.
+          </p>
+          <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {[
+              'Один раз описали — дальше мы',
+              'Не нужно знать, к кому обратиться',
+              'Контекст не теряется при передаче',
+            ].map((t, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, color: INK }}>
+                <Check size={18} style={{ color: ACCENT, flexShrink: 0 }} />
+                {t}
+              </div>
             ))}
-          </ul>
+          </div>
+          <div style={{ marginTop: 40, fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 12, color: INK }}>
+            <div style={{ width: 20, height: 2, background: ACCENT }} />
+            Сложное — нам. Вам — просто.
+          </div>
         </div>
-
-        {/* Слоган внизу */}
-        <div className="relative z-10 mt-12 text-sm font-medium" style={{ color: 'var(--color-muted)' }}>
-          Поддержка Первого Бита
-        </div>
-      </section>
-
-      {/* Адаптив: на мобилке скрываем правый блок и растягиваем форму */}
-      <style>{`
-        @media (max-width: 900px) {
-          aside { max-width: 100% !important; }
-          section { display: none !important; }
-        }
-      `}</style>
+      </div>
     </div>
-  );
+  )
 }

@@ -21,7 +21,11 @@ export default function LoginScreen({ onLogin, onRegister }) {
         await onRegister(email, password, inn, name)
       }
     } catch (err) {
-      setError(err.message || 'Ошибка')
+      if (err.message === 'Failed to fetch' || err.name === 'AbortError') {
+        setError('Сервер просыпается. Подождите 30 секунд и попробуйте снова.')
+      } else {
+        setError(err.message || 'Ошибка')
+      }
     } finally {
       setLoading(false)
     }
@@ -31,10 +35,10 @@ export default function LoginScreen({ onLogin, onRegister }) {
   const INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
 
-  const pageStyle = { display: 'flex', minHeight: '100vh', height: '100vh', fontFamily: 'Inter, sans-serif' }
-  const leftStyle = { width: '100%', maxWidth: 480, padding: '48px 48px', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflowY: 'auto', background: S, flexShrink: 0, minHeight: '100vh' }
-  const rightStyle = { flex: 1, display: 'flex', alignItems: 'center', padding: '64px 72px', background: `linear-gradient(135deg, ${S} 0%, ${S2} 100%)`, position: 'relative', overflow: 'hidden' }
-  const logoStyle = { fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: INK, position: 'absolute', top: 28, left: 48, cursor: 'pointer' }
+  const pageStyle = { display: 'flex', minHeight: '100vh', fontFamily: 'Inter, sans-serif', background: S }
+  const leftStyle = { width: '100%', maxWidth: 480, padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', background: S, flexShrink: 0, minHeight: '100vh', overflowY: 'auto' }
+  const rightStyle = { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 72px', background: `linear-gradient(135deg, ${S} 0%, ${S2} 100%)`, position: 'relative', overflow: 'hidden', minHeight: '100vh' }
+  const logoStyle = { fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: INK, position: 'absolute', top: 28, left: 40, cursor: 'pointer' }
 
   const tabStyle = (active) => ({ fontSize: 14, fontWeight: 500, padding: '10px 0', marginRight: 28, cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', borderBottom: `2px solid ${active ? A : 'transparent'}`, color: active ? INK : L, marginBottom: -1 })
   const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }

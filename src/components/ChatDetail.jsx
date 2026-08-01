@@ -9,15 +9,11 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
 
-  const ACCENT = 'var(--color-accent)'
-  const INK = 'var(--color-ink)'
-  const INK_MUTED = 'var(--color-ink-muted)'
-  const INK_LIGHT = 'var(--color-ink-light)'
-  const SURFACE = 'var(--color-surface)'
-  const SURFACE_2 = 'var(--color-surface-2)'
-  const BORDER = 'var(--color-border)'
+  const A = '#E50071', AH = '#C70060'
+  const INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
+  const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
+  const BG = '#FAFAFA'
 
-  // Загрузка сообщений
   async function loadMessages() {
     try {
       const data = await requestsApi.get(request.id)
@@ -35,10 +31,10 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   useEffect(() => {
     setLoading(true)
     setPolling(true)
+    setMessages([])
     loadMessages()
   }, [request.id])
 
-  // Polling для L0 ответа
   useEffect(() => {
     if (!polling) return
     const interval = setInterval(loadMessages, 2000)
@@ -77,112 +73,131 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const isDone = request.status === 'done'
   const hasAssistantReply = messages.some(m => m.sender === 'assistant')
 
-  const badgeClass = isDone ? 'badge-done' : isL0 ? 'badge-new' : 'badge-waiting'
-  const badgeText = isDone ? 'Решено' : isL0 ? 'Ищем решение' : 'Специалист'
+  const badgeText = isDone ? 'Решено' : isL0 ? 'Ищем решение' : 'В работе'
+  const badgeColor = isDone ? M : isL0 ? A : INK
+  const badgeBg = isDone ? S2 : isL0 ? '#FFF0F7' : S2
 
   return (
-    <div>
-      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium border-none bg-transparent cursor-pointer mb-4 px-3 py-1.5"
-        style={{ color: INK_MUTED, borderRadius: 6, transition: 'all .2s', fontFamily: 'inherit' }}
-        onMouseEnter={e=>{e.currentTarget.style.color=INK;e.currentTarget.style.background=SURFACE_2}}
-        onMouseLeave={e=>{e.currentTarget.style.color=INK_MUTED;e.currentTarget.style.background='transparent'}}>
+    <div style={{ animation: 'fadeUp .4s ease both' }}>
+      <button onClick={onBack}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, color: M, cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', marginBottom: 16, padding: '6px 12px 6px 8px', borderRadius: 6, transition: 'all .2s' }}
+        onMouseEnter={e=>{e.currentTarget.style.color=INK;e.currentTarget.style.background=S2}}
+        onMouseLeave={e=>{e.currentTarget.style.color=M;e.currentTarget.style.background='transparent'}}>
         <ArrowLeft size={16} /> Назад к вопросам
       </button>
 
-      <div className="flex border overflow-hidden" style={{ borderColor: BORDER, borderRadius: 14, height: 'calc(100vh - 56px - 32px - 32px - 48px)', background: SURFACE, boxShadow: '0 2px 4px rgba(0,0,0,.05)' }}>
+      <div style={{ display: 'flex', border: `1px solid ${BD}`, borderRadius: 14, overflow: 'hidden', height: 'calc(100vh - 56px - 32px - 32px - 52px)', background: S, boxShadow: '0 2px 4px rgba(0,0,0,.05)' }} className="chat-layout">
         {/* META */}
-        <div className="hidden md:flex flex-col p-6 overflow-y-auto" style={{ width: 260, borderRight: `1px solid ${BORDER}`, background: SURFACE }}>
+        <div className="chat-meta" style={{ width: 260, borderRight: `1px solid ${BD}`, padding: 22, overflowY: 'auto', display: 'flex', flexDirection: 'column', background: S, flexShrink: 0 }}>
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>Статус</div>
-            <span className={`badge ${badgeClass}`} style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '3px 9px', borderRadius: 6 }}>{badgeText}</span>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Статус</div>
+            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '4px 10px', borderRadius: 6, background: badgeBg, color: badgeColor, border: `1px solid ${badgeBg}` }}>{badgeText}</span>
           </div>
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>Канал</div>
-            <div style={{ fontSize: 14 }}>{isL0 ? 'Ассистент ПРОСТО' : 'Специалист'}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Канал</div>
+            <div style={{ fontSize: 14, color: INK }}>{isL0 ? 'Ассистент ПРОСТО' : 'Специалист'}</div>
           </div>
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: INK_LIGHT, marginBottom: 8 }}>Вопрос</div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>{request.title}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Вопрос</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: INK, lineHeight: 1.4 }}>{request.title}</div>
           </div>
-          <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: `1px solid ${BORDER}` }}>
-            <button onClick={onOpenManager} className="w-full text-left px-3 py-2 border-none bg-transparent cursor-pointer"
-              style={{ color: INK_MUTED, fontSize: 14, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
-              onMouseEnter={e=>{e.currentTarget.style.background=SURFACE_2;e.currentTarget.style.color=INK}}
-              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=INK_MUTED}}>
-              <Phone size={16} style={{ display: 'inline', marginRight: 8, verticalAlign: 'middle' }} />
-              Связаться с менеджером
+          <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: `1px solid ${BD}` }}>
+            <button onClick={onOpenManager}
+              style={{ width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'transparent', color: M, fontSize: 14, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8, transition: 'all .2s' }}
+              onMouseEnter={e=>{e.currentTarget.style.background=S2;e.currentTarget.style.color=INK}}
+              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=M}}>
+              <Phone size={16} /> Связаться с менеджером
             </button>
           </div>
         </div>
 
         {/* CHAT */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex items-center justify-between p-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700 }}>{request.title}</h3>
-            <div style={{ fontSize: 11, fontWeight: 600, color: INK_LIGHT, textTransform: 'uppercase' }}>{isL0 ? 'Ассистент' : 'Специалист'}</div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div style={{ padding: '16px 22px', borderBottom: `1px solid ${BD}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: INK, margin: 0 }}>{request.title}</h3>
+            <div style={{ fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>{isL0 ? 'Ассистент' : 'Специалист'}</div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-3" style={{ background: 'var(--color-bg)' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 22, display: 'flex', flexDirection: 'column', gap: 12, background: BG }}>
             {loading ? (
-              <div style={{ textAlign: 'center', padding: 20, color: INK_MUTED, fontSize: 14 }}>
-                <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', marginRight: 3 }}></span>
-                <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', marginRight: 3, animationDelay: '.2s' }}></span>
-                <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', animationDelay: '.4s' }}></span>
+              <div style={{ textAlign: 'center', padding: 20, color: M, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both' }}></span>
+                <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both', animationDelay: '.2s' }}></span>
+                <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both', animationDelay: '.4s' }}></span>
               </div>
             ) : (
               <>
-                {/* User's initial message */}
+                {/* User initial message */}
                 {request.description && (
-                  <div className="animate-fade-up" style={{ maxWidth: 480, padding: '14px 18px', border: `1px solid ${BORDER}`, borderRadius: 10, background: SURFACE_2, alignSelf: 'flex-end', fontSize: 14, lineHeight: 1.6, boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: INK_LIGHT, marginBottom: 6, textAlign: 'right' }}>Вы</div>
+                  <div style={{ maxWidth: 480, padding: '14px 18px', border: `1px solid ${BD}`, borderRadius: 10, background: S2, alignSelf: 'flex-end', fontSize: 14, lineHeight: 1.6, animation: 'fadeUp .3s ease both' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: L, marginBottom: 6, textAlign: 'right' }}>Вы</div>
                     {request.description}
                   </div>
                 )}
 
-                {/* Messages */}
+                {/* Messages from server */}
                 {messages.map((msg, i) => (
-                  <div key={i} className="animate-fade-up" style={{
-                    maxWidth: 480, padding: '14px 18px', border: `1px solid ${msg.sender==='system'?SURFACE_2:BORDER}`,
-                    borderRadius: 10, fontSize: 14, lineHeight: 1.6, boxShadow: '0 1px 2px rgba(0,0,0,.03)',
-                    background: msg.sender === 'user' ? SURFACE_2 : msg.sender === 'system' ? SURFACE_2 : SURFACE,
+                  <div key={i} style={{
+                    maxWidth: 480, padding: '14px 18px',
+                    border: `1px solid ${msg.sender === 'system' ? S2 : BD}`,
+                    borderRadius: 10, fontSize: 14, lineHeight: 1.6,
+                    background: msg.sender === 'user' ? S2 : msg.sender === 'system' ? S2 : S,
                     alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
                     textAlign: msg.sender === 'system' ? 'center' : 'left',
-                    color: msg.sender === 'system' ? INK_MUTED : INK,
+                    color: msg.sender === 'system' ? M : INK,
+                    animation: 'fadeUp .3s ease both',
                   }}>
-                    {msg.sender === 'assistant' && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: ACCENT, marginBottom: 6 }}>Ассистент ПРОСТО</div>}
-                    {msg.sender === 'user' && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: INK_LIGHT, marginBottom: 6, textAlign: 'right' }}>Вы</div>}
+                    {msg.sender === 'assistant' && (
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: A, marginBottom: 6 }}>
+                        Ассистент ПРОСТО
+                      </div>
+                    )}
+                    {msg.sender === 'user' && (
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: L, marginBottom: 6, textAlign: 'right' }}>
+                        Вы
+                      </div>
+                    )}
                     {msg.text}
                   </div>
                 ))}
 
-                {/* L0 loading — waiting for assistant */}
+                {/* Loading — waiting for assistant */}
                 {isL0 && !hasAssistantReply && !loading && (
-                  <div style={{ textAlign: 'center', padding: 20, color: INK_MUTED, fontSize: 14 }}>
-                    <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', marginRight: 3 }}></span>
-                    <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', marginRight: 3, animationDelay: '.2s' }}></span>
-                    <span className="animate-blink" style={{ display: 'inline-block', width: 7, height: 7, background: ACCENT, borderRadius: '50%', animationDelay: '.4s' }}></span>
-                    <div style={{ marginTop: 8 }}>Ассистент ПРОСТО ищет решение…</div>
+                  <div style={{ textAlign: 'center', padding: 20, color: M, fontSize: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both' }}></span>
+                      <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both', animationDelay: '.2s' }}></span>
+                      <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both', animationDelay: '.4s' }}></span>
+                    </div>
+                    <div>Ассистент ПРОСТО ищет решение…</div>
                   </div>
                 )}
 
                 {/* Evaluation buttons */}
                 {isL0 && hasAssistantReply && !isDone && (
                   <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 13, color: INK_MUTED, marginBottom: 10 }}>Помогло решение?</div>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <button onClick={() => handleEvaluate(true)} className="inline-flex items-center gap-2 px-5 py-2.5 border cursor-pointer"
-                        style={{ borderColor: 'var(--color-border-strong)', background: SURFACE, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
+                    <div style={{ fontSize: 13, color: M, marginBottom: 10 }}>Помогло решение?</div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <button onClick={() => handleEvaluate(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
                         onMouseEnter={e=>{e.currentTarget.style.background=INK;e.currentTarget.style.color='#fff'}}
-                        onMouseLeave={e=>{e.currentTarget.style.background=SURFACE;e.currentTarget.style.color=INK}}>
+                        onMouseLeave={e=>{e.currentTarget.style.background=S;e.currentTarget.style.color=INK}}>
                         <CheckCircle2 size={16} /> Да, всё работает
                       </button>
-                      <button onClick={() => handleEvaluate(false)} className="inline-flex items-center gap-2 px-5 py-2.5 border cursor-pointer"
-                        style={{ borderColor: 'var(--color-border-strong)', background: SURFACE, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
-                        onMouseEnter={e=>{e.currentTarget.style.background=ACCENT;e.currentTarget.style.color='#fff';e.currentTarget.style.borderColor=ACCENT}}
-                        onMouseLeave={e=>{e.currentTarget.style.background=SURFACE;e.currentTarget.style.color=INK;e.currentTarget.style.borderColor='var(--color-border-strong)'}}>
+                      <button onClick={() => handleEvaluate(false)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
+                        onMouseEnter={e=>{e.currentTarget.style.background=A;e.currentTarget.style.color='#fff';e.currentTarget.style.borderColor=A}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=S;e.currentTarget.style.color=INK;e.currentTarget.style.borderColor='#D4D4D8'}}>
                         <AlertCircle size={16} /> Нет, нужна помощь
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* Done */}
+                {isDone && (
+                  <div style={{ textAlign: 'center', padding: '12px 20px', background: S2, borderRadius: 14, alignSelf: 'center', fontSize: 14, color: M, animation: 'fadeIn .4s ease' }}>
+                    Вопрос решён
                   </div>
                 )}
               </>
@@ -191,21 +206,21 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
 
           {/* COMPOSER */}
           {!isDone && !isL0 && (
-            <div className="flex items-center gap-2.5 p-4" style={{ borderTop: `1px solid ${BORDER}`, background: SURFACE }}>
-              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleSend()}}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 22px', borderTop: `1px solid ${BD}`, background: S }}>
+              <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSend() }}
                 placeholder="Напишите сообщение…"
-                style={{ flex: 1, border: `1px solid ${BORDER}`, background: SURFACE_2, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: INK, padding: '11px 15px', borderRadius: 6, transition: 'all .2s' }}
-                onFocus={e=>{e.target.style.borderColor=ACCENT;e.target.style.boxShadow='0 0 0 4px var(--color-accent-glow)'}}
-                onBlur={e=>{e.target.style.borderColor=BORDER;e.target.style.boxShadow='none'}} />
+                style={{ flex: 1, border: `1px solid ${BD}`, background: S2, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: INK, padding: '11px 15px', borderRadius: 8, transition: 'all .2s' }}
+                onFocus={e => { e.target.style.borderColor = A; e.target.style.boxShadow = '0 0 0 4px rgba(229,0,113,.1)' }}
+                onBlur={e => { e.target.style.borderColor = BD; e.target.style.boxShadow = 'none' }} />
               <button onClick={handleSend} disabled={!input.trim() || sending}
-                style={{ width: 42, height: 42, background: input.trim() ? ACCENT : 'var(--color-surface-3)', border: 'none', cursor: input.trim()?'pointer':'not-allowed', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
-                <Send size={18} style={{ color: '#fff' }} />
+                style={{ width: 42, height: 42, background: input.trim() ? A : S2, border: 'none', cursor: input.trim() ? 'pointer' : 'not-allowed', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
+                <Send size={18} style={{ color: input.trim() ? '#fff' : L }} />
               </button>
             </div>
           )}
           {isDone && (
-            <div className="text-center p-4" style={{ borderTop: `1px solid ${BORDER}`, background: SURFACE, fontSize: 14, color: INK_MUTED }}>
-              Вопрос решён. <a onClick={()=>onNavigate('new')} style={{ color: ACCENT, fontWeight: 600, cursor: 'pointer' }}>Задать новый?</a>
+            <div style={{ padding: '16px 22px', textAlign: 'center', fontSize: 14, color: M, borderTop: `1px solid ${BD}`, background: S }}>
+              Вопрос решён. <span onClick={() => onNavigate('new')} style={{ color: A, fontWeight: 600, cursor: 'pointer' }}>Задать новый?</span>
             </div>
           )}
         </div>

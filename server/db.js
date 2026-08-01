@@ -73,8 +73,16 @@ function execute(sql, params = []) {
   stmt.step()
   stmt.free()
   save()
+  // sql.js не всегда корректно возвращает last_insert_rowid,
+  // поэтому ищем максимальный ID в таблице
+  const tableMatch = sql.match(/INSERT\s+INTO\s+(\w+)/i)
+  if (tableMatch) {
+    const table = tableMatch[1]
+    const row = queryOne(`SELECT MAX(id) as id FROM ${table}`)
+    return row?.id || 1
+  }
   const result = queryOne('SELECT last_insert_rowid() as id')
-  return result?.id
+  return result?.id || 1
 }
 
 export function createUser({ email, password, inn, name }) {

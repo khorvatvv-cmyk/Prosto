@@ -1,4 +1,4 @@
-import initSqlJs from 'sql.js'
+﻿import initSqlJs from 'sql.js'
 import bcrypt from 'bcryptjs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -67,27 +67,29 @@ function queryAll(sql, params = []) {
   return rows
 }
 
-function execute(sql, params = []) {
+function executeAndGetId(sql, params = []) {
   const stmt = db.prepare(sql)
   stmt.bind(params)
   stmt.step()
   stmt.free()
   save()
-  // sql.js не всегда корректно возвращает last_insert_rowid,
-  // поэтому ищем максимальный ID в таблице
-  const tableMatch = sql.match(/INSERT\s+INTO\s+(\w+)/i)
-  if (tableMatch) {
-    const table = tableMatch[1]
-    const row = queryOne(`SELECT MAX(id) as id FROM ${table}`)
-    return row?.id || 1
+  // Получаем последний вставленный ID
+  const row = queryOne('SELECT last_insert_rowid() as id')
+  let id = row?.id
+  // Если last_insert_rowid вернул 0, ищем через MAX
+  if (!id || id === 0) {
+    const tableMatch = sql.match(/INSERT\s+INTO\s+(\w+)/i)
+    if (tableMatch) {
+      const maxRow = queryOne(`SELECT MAX(id) as id FROM ${tableMatch[1]}`)
+      id = maxRow?.id || 1
+    }
   }
-  const result = queryOne('SELECT last_insert_rowid() as id')
-  return result?.id || 1
+  return id || 1
 }
 
 export function createUser({ email, password, inn, name }) {
   const hash = bcrypt.hashSync(password, 10)
-  const id = execute('INSERT INTO users (email, password, inn, name) VALUES (?, ?, ?, ?)', [email, hash, inn, name])
+  const id = executeAndGetId('INSERT INTO users (email, password, inn, name) VALUES (?, ?, ?, ?)', [email, hash, inn, name])
   return { id, email, inn, name }
 }
 
@@ -100,7 +102,7 @@ export function findUserById(id) {
 }
 
 export function createRequest({ userId, title, description }) {
-  const id = execute('INSERT INTO requests (user_id, title, description) VALUES (?, ?, ?)', [userId, title, description])
+  const id = executeAndGetId('INSERT INTO requests (user_id, title, description) VALUES (?, ?, ?)', [userId, title, description])
   return { id, userId, title, description, status: 'open', level: 'l0' }
 }
 
@@ -122,10 +124,11 @@ export function updateRequest(id, updates) {
 }
 
 export function addMessage({ requestId, sender, text }) {
-  const id = execute('INSERT INTO messages (request_id, sender, text) VALUES (?, ?, ?)', [requestId, sender, text])
+  const id = executeAndGetId('INSERT INTO messages (request_id, sender, text) VALUES (?, ?, ?)', [requestId, sender, text])
   return { id, requestId, sender, text }
 }
 
 export function getMessagesByRequestId(requestId) {
   return queryAll('SELECT * FROM messages WHERE request_id = ? ORDER BY created_at ASC', [requestId])
 }
+

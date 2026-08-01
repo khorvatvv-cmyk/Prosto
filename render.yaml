@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: prosto-server
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: JWT_SECRET
+        value: prosto-secret-2026
+      - key: ASSISTANT_ID
+        value: 869836e7-7202-4217-a390-5569855d73eb
+      - key: ASSISTANT_API_KEY
+        value: aipk_eZQG4U2MTxy3pdt-Sv2gBpiKhIwSv1terXk6Ot8OrjA
+      - key: NODE_VERSION
+        value: 22.0.0

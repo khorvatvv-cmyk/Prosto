@@ -68,7 +68,10 @@ function queryAll(sql, params = []) {
 }
 
 function execute(sql, params = []) {
-  db.run(sql, params)
+  const stmt = db.prepare(sql)
+  stmt.bind(params)
+  stmt.step()
+  stmt.free()
   save()
   const result = queryOne('SELECT last_insert_rowid() as id')
   return result?.id

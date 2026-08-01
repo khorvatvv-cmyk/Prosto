@@ -13,8 +13,12 @@ const app = express()
 const PORT = process.env.PORT || 3001
 const JWT_SECRET = process.env.JWT_SECRET || 'prosto-secret-key-2026'
 
-app.use(cors())
+app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() })
+})
 
 function auth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '')

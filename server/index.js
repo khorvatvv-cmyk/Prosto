@@ -41,9 +41,14 @@ app.post('/api/auth/register', (req, res) => {
   if (existing) {
     return res.status(409).json({ error: 'Пользователь с таким email уже существует' })
   }
-  const user = createUser({ email, password, inn, name })
+  createUser({ email, password, inn, name })
+  // Загружаем созданного пользователя из БД для получения правильного ID
+  const user = findUserByEmail(email)
+  if (!user) {
+    return res.status(500).json({ error: 'Ошибка создания пользователя' })
+  }
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' })
-  res.json({ token, user: { id: user.id, email, inn, name } })
+  res.json({ token, user: { id: user.id, email: user.email, inn: user.inn, name: user.name } })
 })
 
 app.post('/api/auth/login', (req, res) => {
@@ -78,24 +83,27 @@ app.post('/api/requests', auth, (req, res) => {
   }
   const request = createRequest({ userId: req.userId, title: title.trim(), description: description || '' })
 
+  // Загружаем созданный вопрос из БД для получения правильного ID
+  const fullRequest = getRequestById(request.id, req.userId) || request
+
   // Сохраняем сообщение пользователя
-  addMessage({ requestId: request.id, sender: 'user', text: description || title })
+  addMessage({ requestId: fullRequest.id, sender: 'user', text: description || title })
 
   // Вызываем ассистента L0 (ассистент ПРОСТО)
   askAssistant(description || title).then(result => {
     addMessage({
-      requestId: request.id,
+      requestId: fullRequest.id,
       sender: 'assistant',
       text: result.text,
     })
     if (!result.available) {
-      updateRequest(request.id, { status: 'waiting', level: 'l1' })
+      updateRequest(fullRequest.id, { status: 'waiting', level: 'l1' })
     }
   }).catch(err => {
     console.error('Assistant error:', err)
   })
 
-  res.json({ request })
+  res.json({ request: fullRequest })
 })
 
 app.get('/api/requests/:id', auth, (req, res) => {

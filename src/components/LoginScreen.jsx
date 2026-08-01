@@ -54,7 +54,7 @@ export default function LoginScreen({ onLogin, onRegister }) {
   return (
     <div className="flex min-h-screen h-screen">
       {/* LEFT — FORM */}
-      <div className="flex-0 0 480px max-w-[480px] flex flex-col justify-center px-12 py-12 relative overflow-y-auto" style={{ background: SURFACE }}>
+      <div className="w-full md:w-[480px] md:flex-shrink-0 flex flex-col justify-center px-6 md:px-12 py-12 relative overflow-y-auto" style={{ background: SURFACE, minHeight: '100vh' }}>
         <div className="absolute top-7 left-12">
           <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: INK }}>
             просто<span style={{ color: ACCENT }}>.</span>

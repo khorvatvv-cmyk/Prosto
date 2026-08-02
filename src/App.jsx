@@ -20,6 +20,28 @@ import SpecialistPanel from './components/SpecialistPanel.jsx'
 import ManagerPanel from './components/ManagerPanel.jsx'
 import RofPanel from './components/RofPanel.jsx'
 
+const STAFF_ROLES = ['manager', 'rof', 'specialist']
+
+const HOME_PAGE_BY_ROLE = {
+  user: 'dashboard',
+  manager: 'manager',
+  specialist: 'specialist',
+  rof: 'rof',
+  admin: 'admin',
+}
+
+const ALLOWED_PAGES_BY_ROLE = {
+  user: new Set(['dashboard', 'new', 'detail', 'important', 'notifs', 'manager-chat', 'profile']),
+  manager: new Set(['manager', 'profile']),
+  specialist: new Set(['specialist', 'profile']),
+  rof: new Set(['rof', 'profile']),
+  admin: new Set(['dashboard', 'new', 'detail', 'important', 'notifs', 'manager-chat', 'profile', 'admin', 'specialist', 'manager', 'rof']),
+}
+
+function homePageForRole(role) {
+  return HOME_PAGE_BY_ROLE[role] || 'dashboard'
+}
+
 export default function App() {
   const { user, setUser, loading, login, register: rawRegister, logout } = useAuth()
   const register = useCallback(async (email, password, inn, name, onProgress) => {
@@ -34,36 +56,38 @@ export default function App() {
   const [managerOpen, setManagerOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const userId = user?.id
+  const userRole = user?.role
 
   const showToast = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(null), 2500)
   }
 
-  // Загрузка вопросов с сервера
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     try {
       const data = await requestsApi.list()
       setRequests(data.requests || [])
     } catch (e) {
       console.error('Load requests error:', e)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    if (user) loadRequests()
-  }, [user])
+    if (userId && (userRole === 'user' || userRole === 'admin')) loadRequests()
+  }, [userId, userRole, loadRequests])
 
   useEffect(() => {
-    if (!user) return
-    const r = user.role
-    if (r === 'rof') setPage('rof')
-    else if (r === 'manager') setPage('manager')
-    else if (r === 'specialist') setPage('specialist')
-    else setPage('dashboard')
-  }, [user?.role])
+    if (!userRole) return
+    setPage(homePageForRole(userRole))
+  }, [userRole])
 
   const goTo = (p) => {
+    const allowedPages = ALLOWED_PAGES_BY_ROLE[userRole] || ALLOWED_PAGES_BY_ROLE.user
+    if (!allowedPages.has(p)) {
+      setPage(homePageForRole(userRole))
+      return
+    }
     setPage(p)
     if (p === 'dashboard') {
       setFilter('all')
@@ -124,6 +148,36 @@ export default function App() {
   }
 
   const currentRequest = requests.find(r => r.id === currentRequestId)
+  const isStaff = STAFF_ROLES.includes(user.role)
+
+  if (isStaff) {
+    return (
+      <div className="h-screen flex flex-col bg-[var(--color-bg)]">
+        <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-8 pb-20" style={{ scrollBehavior: 'smooth' }}>
+          <div className="max-w-[1200px] mx-auto">
+            {page === 'specialist' && (user.role === 'specialist' || user.role === 'admin') && (
+              <SpecialistPanel user={user} showToast={showToast} />
+            )}
+            {page === 'manager' && (user.role === 'manager' || user.role === 'rof' || user.role === 'admin') && (
+              <ManagerPanel user={user} showToast={showToast} />
+            )}
+            {page === 'rof' && (user.role === 'rof' || user.role === 'admin') && (
+              <RofPanel user={user} showToast={showToast} />
+            )}
+            {page === 'admin' && user.role === 'admin' && (
+              <AdminPanel user={user} />
+            )}
+            {page === 'profile' && (
+              <Profile user={user} onOpenManager={() => {}} onLogout={logout} onUpdateUser={setUser} />
+            )}
+          </div>
+        </main>
+        <MobileTabbar onNavigate={goTo} page={page} user={user} />
+        {toast && <Toast message={toast} />}
+      </div>
+    )
+  }
 
   return (
     <div className="h-screen flex flex-col bg-[var(--color-bg)]">
@@ -149,7 +203,7 @@ export default function App() {
               <ChatDetail
                 request={currentRequest}
                 onBack={() => goTo('dashboard')}
-                onOpenManager={() => setManagerOpen(true)}
+                onOpenManager={() => goTo('manager-chat')}
                 onEvaluate={evaluateRequest}
                 onNavigate={goTo}
                 showToast={showToast}
@@ -158,11 +212,11 @@ export default function App() {
             {page === 'important' && (
               <Important showToast={showToast} onNavigate={goTo} />
             )}
-            {page === 'manager-chat' && user?.role === 'user' && (
+            {page === 'manager-chat' && (
               <ClientManagerChat user={user} showToast={showToast} />
             )}
             {page === 'profile' && (
-              <Profile user={user} onOpenManager={() => setManagerOpen(true)} onLogout={logout} onUpdateUser={setUser} />
+              <Profile user={user} onOpenManager={() => goTo('manager-chat')} onLogout={logout} onUpdateUser={setUser} />
             )}
             {page === 'notifs' && (
               <Notifications requests={requests} onOpenDetail={openDetail} />
@@ -170,20 +224,11 @@ export default function App() {
             {page === 'admin' && user?.role === 'admin' && (
               <AdminPanel user={user} />
             )}
-            {page === 'specialist' && (user?.role === 'specialist' || user?.role === 'admin') && (
-              <SpecialistPanel user={user} showToast={showToast} />
-            )}
-            {page === 'manager' && (user?.role === 'manager' || user?.role === 'rof' || user?.role === 'admin') && (
-              <ManagerPanel user={user} showToast={showToast} />
-            )}
-            {page === 'rof' && (user?.role === 'rof' || user?.role === 'admin') && (
-              <RofPanel user={user} showToast={showToast} />
-            )}
           </div>
         </main>
       </div>
       <MobileTabbar onNavigate={goTo} page={page} user={user} />
-      {managerOpen && user?.role !== 'user' && <ManagerModal onClose={() => setManagerOpen(false)} onSend={messageManager} />}
+      {managerOpen && <ManagerModal onClose={() => setManagerOpen(false)} onSend={messageManager} />}
       {toast && <Toast message={toast} />}
     </div>
   )

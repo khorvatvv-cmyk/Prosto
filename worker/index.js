@@ -132,6 +132,37 @@ async function getOrgForUser(env, userId) {
   `).bind(userId).first()
 }
 
+async function ensureOrganizationMembership(env, user) {
+  const inn = String(user?.inn || '').trim()
+  if (!/^\d{10}(\d{2})?$/.test(inn)) return null
+
+  let org = await env.DB.prepare('SELECT * FROM organizations WHERE inn = ?').bind(inn).first()
+  if (!org) {
+    let office = await env.DB.prepare('SELECT id FROM offices WHERE is_active = 1 ORDER BY id LIMIT 1').first()
+    if (!office) {
+      await env.DB.prepare("INSERT INTO offices (name, code, is_active) VALUES ('Кемерово', 'KEM', 1) ON CONFLICT(code) DO NOTHING").run()
+      office = await env.DB.prepare('SELECT id FROM offices WHERE code = ?').bind('KEM').first()
+    }
+    await env.DB.prepare(`
+      INSERT INTO organizations (office_id, inn, name, service_status, last_activity_at)
+      VALUES (?, ?, ?, 'unknown', CURRENT_TIMESTAMP)
+      ON CONFLICT(inn) DO NOTHING
+    `).bind(office.id, inn, user.organization || null).run()
+    org = await env.DB.prepare('SELECT * FROM organizations WHERE inn = ?').bind(inn).first()
+  }
+
+  const existing = await env.DB.prepare('SELECT * FROM organization_users WHERE organization_id = ? AND user_id = ?').bind(org.id, user.id).first()
+  if (!existing) {
+    const activeMember = await env.DB.prepare("SELECT 1 AS found FROM organization_users WHERE organization_id = ? AND membership_status = 'active' LIMIT 1").bind(org.id).first()
+    const membershipStatus = activeMember ? 'pending' : 'active'
+    await env.DB.prepare(`
+      INSERT INTO organization_users (organization_id, user_id, membership_status, approved_at)
+      VALUES (?, ?, ?, CASE WHEN ? = 'active' THEN CURRENT_TIMESTAMP ELSE NULL END)
+    `).bind(org.id, user.id, membershipStatus, membershipStatus).run()
+  }
+  return org
+}
+
 async function getManagerOrgs(env, managerId) {
   const result = await env.DB.prepare('SELECT * FROM organizations WHERE manager_id = ?').bind(managerId).all()
   return result.results || []
@@ -153,7 +184,13 @@ async function findOrCreateConversation(env, orgId, clientUserId, managerId = nu
   const existing = await env.DB.prepare(
     'SELECT * FROM manager_conversations WHERE organization_id = ? AND client_user_id = ?',
   ).bind(orgId, clientUserId).first()
-  if (existing) return existing
+  if (existing) {
+    if (managerId != null && existing.manager_id !== managerId) {
+      await env.DB.prepare('UPDATE manager_conversations SET manager_id = ? WHERE id = ?').bind(managerId, existing.id).run()
+      existing.manager_id = managerId
+    }
+    return existing
+  }
   await env.DB.prepare(
     'INSERT INTO manager_conversations (organization_id, client_user_id, manager_id) VALUES (?, ?, ?)',
   ).bind(orgId, clientUserId, managerId).run()
@@ -277,6 +314,7 @@ async function handleRegister(request, env) {
     throw error
   }
   const user = await findUserById(env, result.meta.last_row_id)
+  if (user.role === 'user') await ensureOrganizationMembership(env, user)
   return json({ token: await signToken(user.id, env.JWT_SECRET), user: publicUser(user) }, 201)
 }
 
@@ -316,9 +354,10 @@ async function handleRequestCreate(request, env) {
   if (title.length > 200) throw httpError(400, 'Сократите заголовок до 200 символов')
   if (description.length > MAX_TEXT_LENGTH) throw httpError(400, 'Сократите описание до 10 000 символов')
 
+  const org = await ensureOrganizationMembership(env, user)
   const created = await env.DB.prepare(
-    'INSERT INTO requests (user_id, title, description) VALUES (?, ?, ?)',
-  ).bind(user.id, title, description).run()
+    'INSERT INTO requests (user_id, title, description, organization_id, client_user_id, last_message_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+  ).bind(user.id, title, description, org?.id || null, user.id).run()
   const requestId = created.meta.last_row_id
   const text = description || title
   await addMessage(env, requestId, 'user', text)
@@ -359,9 +398,10 @@ async function handleManagerMessage(request, env) {
   if (text.length > MAX_TEXT_LENGTH) throw httpError(400, 'Сократите сообщение до 10 000 символов')
 
   const title = text.length > 80 ? `${text.slice(0, 77)}…` : text
+  const org = await ensureOrganizationMembership(env, user)
   const created = await env.DB.prepare(
-    "INSERT INTO requests (user_id, title, description, status, level, l1_transferred_at) VALUES (?, ?, ?, 'waiting', 'l1', ?)",
-  ).bind(user.id, title, text, new Date().toISOString()).run()
+    "INSERT INTO requests (user_id, title, description, status, level, l1_transferred_at, organization_id, client_user_id, last_message_at) VALUES (?, ?, ?, 'waiting', 'l1', ?, ?, ?, CURRENT_TIMESTAMP)",
+  ).bind(user.id, title, text, new Date().toISOString(), org?.id || null, user.id).run()
   const requestId = created.meta.last_row_id
   await addMessage(env, requestId, 'user', text)
   await addMessage(env, requestId, 'system', 'Сообщение передано команде сопровождения. Повторно описывать вопрос не нужно.')
@@ -930,6 +970,7 @@ async function handleAssignOrg(request, env, id) {
     if (org.manager_id !== null) throw httpError(409, 'У организации уже есть менеджер')
     const result = await env.DB.prepare('UPDATE organizations SET manager_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND manager_id IS NULL').bind(user.id, id).run()
     if (!result.meta.changes) throw httpError(409, 'Организация уже закреплена за другим менеджером')
+    await env.DB.prepare('UPDATE manager_conversations SET manager_id = ? WHERE organization_id = ?').bind(user.id, id).run()
     await env.DB.prepare('INSERT INTO client_assignments (organization_id, previous_manager_id, new_manager_id, changed_by, reason) VALUES (?, ?, ?, ?, ?)').bind(id, org.manager_id, user.id, user.id, 'Забрал себе').run()
     await audit(env, user.id, 'assign_manager', 'organization', id, `Менеджер ${user.id} забрал организацию`)
   } else {
@@ -940,6 +981,7 @@ async function handleAssignOrg(request, env, id) {
     if (!specialist) throw httpError(404, 'Менеджер не найден')
     if (specialist.role !== 'manager' && specialist.role !== 'rof' && specialist.role !== 'admin') throw httpError(400, 'Пользователь не является менеджером')
     await env.DB.prepare('UPDATE organizations SET manager_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newManagerId, id).run()
+    await env.DB.prepare('UPDATE manager_conversations SET manager_id = ? WHERE organization_id = ?').bind(newManagerId, id).run()
     await env.DB.prepare('INSERT INTO client_assignments (organization_id, previous_manager_id, new_manager_id, changed_by, reason) VALUES (?, ?, ?, ?, ?)').bind(id, org.manager_id, newManagerId, user.id, body.reason || 'Назначение РОФ').run()
     await audit(env, user.id, 'assign_manager', 'organization', id, `РОФ назначил менеджера ${newManagerId}`)
   }
@@ -951,6 +993,7 @@ async function handleUnassignOrg(request, env, id) {
   const org = await env.DB.prepare('SELECT * FROM organizations WHERE id = ?').bind(id).first()
   if (!org) throw httpError(404, 'Организация не найдена')
   await env.DB.prepare('UPDATE organizations SET manager_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(id).run()
+  await env.DB.prepare('UPDATE manager_conversations SET manager_id = NULL WHERE organization_id = ?').bind(id).run()
   await env.DB.prepare('INSERT INTO client_assignments (organization_id, previous_manager_id, new_manager_id, changed_by, reason) VALUES (?, ?, NULL, ?, ?)').bind(id, org.manager_id, user.id, 'Снято РОФ').run()
   await audit(env, user.id, 'unassign_manager', 'organization', id, 'Снятие менеджера')
   return json({ ok: true })
@@ -1031,7 +1074,7 @@ async function handleClientChatList(request, env) {
       FROM manager_conversations c
       JOIN organizations o ON c.organization_id = o.id
       JOIN users u ON c.client_user_id = u.id
-      WHERE c.manager_id = ?
+      WHERE o.manager_id = ?
       ORDER BY c.created_at DESC
     `).bind(user.id, user.id).all()
     return json({ conversations: result.results || [] })
@@ -1068,10 +1111,15 @@ async function handleClientChatList(request, env) {
 
 async function handleClientChatMessages(request, env, convId) {
   const user = await authenticate(request, env)
-  const conv = await env.DB.prepare('SELECT * FROM manager_conversations WHERE id = ?').bind(convId).first()
+  const conv = await env.DB.prepare(`
+    SELECT c.*, o.manager_id AS current_manager_id
+    FROM manager_conversations c
+    JOIN organizations o ON o.id = c.organization_id
+    WHERE c.id = ?
+  `).bind(convId).first()
   if (!conv) throw httpError(404, 'Чат не найден')
   if (user.role === 'user' && conv.client_user_id !== user.id) throw httpError(403, 'Нет доступа')
-  if (user.role === 'manager' && conv.manager_id !== user.id) throw httpError(403, 'Нет доступа')
+  if (user.role === 'manager' && conv.current_manager_id !== user.id) throw httpError(403, 'Нет доступа')
   const result = await env.DB.prepare(`
     SELECT m.*, u.name AS sender_name
     FROM manager_messages m LEFT JOIN users u ON m.sender_id = u.id
@@ -1098,9 +1146,17 @@ let convId
     convId = conv.id
   } else if (body.conversation_id) {
     convId = Number(body.conversation_id)
-    const conv = await env.DB.prepare('SELECT * FROM manager_conversations WHERE id = ?').bind(convId).first()
+    const conv = await env.DB.prepare(`
+      SELECT c.*, o.manager_id AS current_manager_id
+      FROM manager_conversations c
+      JOIN organizations o ON o.id = c.organization_id
+      WHERE c.id = ?
+    `).bind(convId).first()
     if (!conv) throw httpError(404, 'Чат не найден')
-    if (user.role === 'manager' && conv.manager_id !== user.id) throw httpError(403, 'Нет доступа')
+    if (user.role === 'manager' && conv.current_manager_id !== user.id) throw httpError(403, 'Нет доступа')
+    if (conv.current_manager_id != null && conv.manager_id !== conv.current_manager_id) {
+      await env.DB.prepare('UPDATE manager_conversations SET manager_id = ? WHERE id = ?').bind(conv.current_manager_id, conv.id).run()
+    }
   } else if (body.client_user_id) {
     const clientUserId = Number(body.client_user_id)
     const clientUser = await findUserById(env, clientUserId)

@@ -151,6 +151,7 @@ export default function ManagerPanel({ user, showToast }) {
   const [deliveriesLoading, setDeliveriesLoading] = useState(false)
 
   const [showClientMessage, setShowClientMessage] = useState(false)
+  const [clientMsgUserId, setClientMsgUserId] = useState('')
   const [clientMsgText, setClientMsgText] = useState('')
   const [sendingClientMsg, setSendingClientMsg] = useState(false)
 
@@ -282,6 +283,8 @@ export default function ManagerPanel({ user, showToast }) {
     try {
       const data = await managerApi.orgDetail(id)
       setOrgDetail(data)
+      const activeUser = (data.users || []).find(item => item.membership_status === 'active') || data.users?.[0]
+      setClientMsgUserId(activeUser ? String(activeUser.id) : '')
     } catch (e) {
       showToast('Ошибка загрузки организации: ' + e.message)
     } finally {
@@ -293,6 +296,7 @@ export default function ManagerPanel({ user, showToast }) {
     setSelectedOrgId(null)
     setOrgDetail(null)
     setShowClientMessage(false)
+    setClientMsgUserId('')
     setClientMsgText('')
   }
 
@@ -395,13 +399,14 @@ export default function ManagerPanel({ user, showToast }) {
 
   const handleSendClientMessage = async () => {
     const text = clientMsgText.trim()
-    if (!text) return
+    if (!text || !clientMsgUserId) return
     setSendingClientMsg(true)
     try {
-      await chatApi.send(text)
+      await chatApi.send(text, null, clientMsgUserId)
       setClientMsgText('')
       setShowClientMessage(false)
       showToast('Сообщение отправлено')
+      await loadConversations()
     } catch (e) {
       showToast(e.message || 'Не удалось отправить сообщение')
     } finally {
@@ -658,6 +663,23 @@ export default function ManagerPanel({ user, showToast }) {
             {showClientMessage && (
               <div style={{ marginBottom: 16, padding: 16, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
                 <div style={{ fontWeight: 600, fontSize: 14, color: INK, marginBottom: 10 }}>Сообщение клиенту</div>
+                {(orgDetail.users || []).length > 1 && (
+                  <select value={clientMsgUserId} onChange={e => setClientMsgUserId(e.target.value)}
+                    style={{ width: '100%', height: 38, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', boxSizing: 'border-box', background: S, marginBottom: 10 }}>
+                    <option value="">Выберите получателя</option>
+                    {(orgDetail.users || []).map(item => (
+                      <option key={item.id} value={item.id}>{item.name || item.email}{item.membership_status !== 'active' ? ' (не подтверждён)' : ''}</option>
+                    ))}
+                  </select>
+                )}
+                {(orgDetail.users || []).length === 1 && (
+                  <div style={{ fontSize: 12, color: M, marginBottom: 8 }}>
+                    Получатель: {orgDetail.users[0].name || orgDetail.users[0].email}
+                  </div>
+                )}
+                {(orgDetail.users || []).length === 0 && (
+                  <div style={{ fontSize: 13, color: A, marginBottom: 10 }}>У организации пока нет зарегистрированных пользователей.</div>
+                )}
                 <textarea
                   value={clientMsgText}
                   onChange={e => setClientMsgText(e.target.value)}
@@ -668,8 +690,8 @@ export default function ManagerPanel({ user, showToast }) {
                   onBlur={e => e.target.style.borderColor = BD}
                   onKeyDown={e => handleKeyDown(e, handleSendClientMessage)}
                 />
-                <button onClick={handleSendClientMessage} disabled={sendingClientMsg || !clientMsgText.trim()}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: INK, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={handleSendClientMessage} disabled={sendingClientMsg || !clientMsgText.trim() || !clientMsgUserId}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: clientMsgText.trim() && clientMsgUserId ? INK : S2, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: clientMsgText.trim() && clientMsgUserId ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                   <Send size={14} /> {sendingClientMsg ? 'Отправка…' : 'Отправить'}
                 </button>
               </div>

@@ -23,6 +23,12 @@ export default function AdminPanel() {
   const [newManagerName, setNewManagerName] = useState('')
   const [creatingManager, setCreatingManager] = useState(false)
   const [createManagerError, setCreateManagerError] = useState('')
+  const [newRofEmail, setNewRofEmail] = useState('')
+  const [newRofPassword, setNewRofPassword] = useState('')
+  const [newRofName, setNewRofName] = useState('')
+  const [creatingRof, setCreatingRof] = useState(false)
+  const [createRofError, setCreateRofError] = useState('')
+  const [roleNotice, setRoleNotice] = useState('')
 
   const A = '#E50071', INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
@@ -74,11 +80,13 @@ export default function AdminPanel() {
   }
 
   async function changeRole(userId, role) {
+    setRoleNotice('')
     try {
       await adminApi.setUserRole(userId, role)
       await load()
+      setRoleNotice('Роль пользователя обновлена')
     } catch (e) {
-      console.error('Role change error:', e)
+      setRoleNotice('Ошибка: ' + (e.message || 'не удалось изменить роль'))
     }
   }
 
@@ -116,6 +124,23 @@ export default function AdminPanel() {
     }
   }
 
+  async function createRof() {
+    if (!newRofEmail.trim() || !newRofPassword.trim()) return
+    setCreatingRof(true)
+    setCreateRofError('')
+    try {
+      await adminApi.createRof(newRofEmail.trim(), newRofPassword, newRofName.trim())
+      setNewRofEmail('')
+      setNewRofPassword('')
+      setNewRofName('')
+      await load()
+    } catch (e) {
+      setCreateRofError(e.message || 'Не удалось создать РОФ')
+    } finally {
+      setCreatingRof(false)
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка админ-панели…</div>
   }
@@ -124,6 +149,8 @@ export default function AdminPanel() {
     { id: 'dashboard', label: 'Обзор' },
     { id: 'users', label: 'Пользователи' },
     { id: 'specialists', label: 'Специалисты' },
+    { id: 'managers', label: 'Менеджеры' },
+    { id: 'rofs', label: 'РОФ' },
     { id: 'orgs', label: 'Организации' },
     { id: 'requests', label: 'Вопросы' },
     { id: 'test', label: 'Тест ассистента' },
@@ -150,7 +177,7 @@ export default function AdminPanel() {
       </div>
 
       {/* TABS */}
-      <div style={{ display: 'flex', gap: 2, marginBottom: 20, padding: 4, background: S2, borderRadius: 10, width: 'fit-content' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 20, padding: 4, background: S2, borderRadius: 10, width: 'fit-content', maxWidth: '100%' }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => { setTab(t.id); setSelectedRequest(null) }}
             style={{ fontSize: 13, fontWeight: 500, padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -234,7 +261,14 @@ export default function AdminPanel() {
 
       {/* === USERS === */}
       {tab === 'users' && (
-        <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
+        <div>
+          <div style={{ background: '#FFF0F7', border: `1px solid ${A}22`, borderRadius: 10, padding: 16, marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: INK, marginBottom: 4 }}>Как назначить РОФ</div>
+            <div style={{ fontSize: 13, color: M }}>У существующего пользователя выберите роль «РОФ» в столбце «Действие» или создайте отдельную учётную запись на вкладке «РОФ».</div>
+            <button onClick={() => setTab('rofs')} style={{ marginTop: 10, height: 32, padding: '0 12px', border: 'none', borderRadius: 6, background: A, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Открыть вкладку РОФ</button>
+          </div>
+          {roleNotice && <div style={{ fontSize: 13, color: roleNotice.startsWith('Ошибка') ? A : '#16A34A', marginBottom: 10 }}>{roleNotice}</div>}
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${BD}` }}>
@@ -281,33 +315,13 @@ export default function AdminPanel() {
             </tbody>
           </table>
           {users.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: M }}>Нет пользователей</div>}
+          </div>
         </div>
       )}
 
       {/* === SPECIALISTS === */}
       {tab === 'specialists' && (
         <div>
-          {/* Create manager form */}
-          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 500 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Добавить менеджера</h3>
-            <p style={{ fontSize: 13, color: M, marginBottom: 16 }}>Менеджер сможет входить в приложение и вести своих клиентов.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input type="text" value={newManagerName} onChange={e => setNewManagerName(e.target.value)} placeholder="Имя менеджера"
-                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
-              <input type="email" value={newManagerEmail} onChange={e => setNewManagerEmail(e.target.value)} placeholder="Email"
-                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
-              <input type="password" value={newManagerPassword} onChange={e => setNewManagerPassword(e.target.value)} placeholder="Пароль (мин. 8 символов)"
-                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
-              {createManagerError && <div style={{ fontSize: 13, color: A, padding: '8px 12px', background: '#FFF0F7', borderRadius: 8 }}>{createManagerError}</div>}
-              <button onClick={createManager} disabled={creatingManager || !newManagerEmail.trim() || !newManagerPassword.trim()}
-                style={{ height: 46, background: creatingManager || !newManagerEmail.trim() || !newManagerPassword.trim() ? S2 : A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: creatingManager ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                {creatingManager ? 'Создание…' : 'Создать менеджера'}
-              </button>
-            </div>
-          </div>
           {/* Create form */}
           <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 500 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Добавить специалиста L1</h3>
@@ -359,6 +373,96 @@ export default function AdminPanel() {
               </tbody>
             </table>
             {users.filter(u => u.role === 'specialist').length === 0 && <div style={{ padding: 20, textAlign: 'center', color: M }}>Специалистов пока нет</div>}
+          </div>
+        </div>
+      )}
+
+      {/* === MANAGERS === */}
+      {tab === 'managers' && (
+        <div>
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 500 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Добавить менеджера</h3>
+            <p style={{ fontSize: 13, color: M, marginBottom: 16 }}>Менеджер видит своих клиентов, обращения и чаты.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input type="text" value={newManagerName} onChange={e => setNewManagerName(e.target.value)} placeholder="Имя менеджера"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              <input type="email" value={newManagerEmail} onChange={e => setNewManagerEmail(e.target.value)} placeholder="Email"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              <input type="password" value={newManagerPassword} onChange={e => setNewManagerPassword(e.target.value)} placeholder="Пароль (мин. 8 символов)"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              {createManagerError && <div style={{ fontSize: 13, color: A, padding: '8px 12px', background: '#FFF0F7', borderRadius: 8 }}>{createManagerError}</div>}
+              <button onClick={createManager} disabled={creatingManager || !newManagerEmail.trim() || !newManagerPassword.trim()}
+                style={{ height: 46, background: creatingManager || !newManagerEmail.trim() || !newManagerPassword.trim() ? S2 : A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: creatingManager ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {creatingManager ? 'Создание…' : 'Создать менеджера'}
+              </button>
+            </div>
+          </div>
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={{ borderBottom: `1px solid ${BD}` }}>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Email</th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Имя</th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Создан</th>
+              </tr></thead>
+              <tbody>
+                {users.filter(u => u.role === 'manager').map(u => (
+                  <tr key={u.id} style={{ borderBottom: `1px solid ${S2}` }}>
+                    <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500 }}>{u.email}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13 }}>{u.name || '—'}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13, color: M }}>{formatDate(u.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {users.filter(u => u.role === 'manager').length === 0 && <div style={{ padding: 20, textAlign: 'center', color: M }}>Менеджеров пока нет</div>}
+          </div>
+        </div>
+      )}
+
+      {/* === ROF === */}
+      {tab === 'rofs' && (
+        <div>
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 500 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Добавить РОФ</h3>
+            <p style={{ fontSize: 13, color: M, marginBottom: 16 }}>РОФ видит всех клиентов, менеджеров и состояние очереди L1.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input type="text" value={newRofName} onChange={e => setNewRofName(e.target.value)} placeholder="Имя РОФ"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              <input type="email" value={newRofEmail} onChange={e => setNewRofEmail(e.target.value)} placeholder="Email"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              <input type="password" value={newRofPassword} onChange={e => setNewRofPassword(e.target.value)} placeholder="Пароль (мин. 8 символов)"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              {createRofError && <div style={{ fontSize: 13, color: A, padding: '8px 12px', background: '#FFF0F7', borderRadius: 8 }}>{createRofError}</div>}
+              <button onClick={createRof} disabled={creatingRof || !newRofEmail.trim() || !newRofPassword.trim()}
+                style={{ height: 46, background: creatingRof || !newRofEmail.trim() || !newRofPassword.trim() ? S2 : A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: creatingRof ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {creatingRof ? 'Создание…' : 'Создать РОФ'}
+              </button>
+            </div>
+          </div>
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={{ borderBottom: `1px solid ${BD}` }}>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Email</th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Имя</th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Создан</th>
+              </tr></thead>
+              <tbody>
+                {users.filter(u => u.role === 'rof').map(u => (
+                  <tr key={u.id} style={{ borderBottom: `1px solid ${S2}` }}>
+                    <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500 }}>{u.email}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13 }}>{u.name || '—'}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13, color: M }}>{formatDate(u.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {users.filter(u => u.role === 'rof').length === 0 && <div style={{ padding: 20, textAlign: 'center', color: M }}>РОФов пока нет</div>}
           </div>
         </div>
       )}

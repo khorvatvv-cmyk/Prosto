@@ -17,6 +17,7 @@ export default function Profile({ user, onOpenManager, onLogout, onUpdateUser })
   const A = '#E50071'
   const INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
+  const isClientProfile = user?.role === 'user' || user?.role === 'admin'
 
   const rows = [
     { label: 'ФИО', value: user?.name || 'Не указано' },
@@ -96,7 +97,7 @@ export default function Profile({ user, onOpenManager, onLogout, onUpdateUser })
         ))}
       </section>
 
-      <section style={{ maxWidth: 640, padding: 22, marginBottom: 18, border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface)' }}>
+      {isClientProfile && <section style={{ maxWidth: 640, padding: 22, marginBottom: 18, border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, background: 'var(--color-accent-tint)', color: 'var(--color-accent)' }}><Settings2 size={20} /></span>
@@ -167,9 +168,9 @@ export default function Profile({ user, onOpenManager, onLogout, onUpdateUser })
             </div>
           </div>
         )}
-      </section>
+      </section>}
 
-      <section style={{ maxWidth: 640, padding: 22, marginBottom: 18, border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface-2)' }}>
+      {isClientProfile && <section style={{ maxWidth: 640, padding: 22, marginBottom: 18, border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface-2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <span style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, background: 'var(--color-accent-tint)', color: 'var(--color-accent)' }}><Headphones size={20} /></span>
           <div>
@@ -180,7 +181,7 @@ export default function Profile({ user, onOpenManager, onLogout, onUpdateUser })
         <button type="button" onClick={onOpenManager} style={{ height: 42, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--color-accent)', color: '#fff', fontSize: 14, fontWeight: 650, cursor: 'pointer' }}>
           Написать команде
         </button>
-      </section>
+      </section>}
 
       <button type="button" onClick={onLogout} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 42, padding: '0 14px', border: 'none', background: 'transparent', color: 'var(--color-accent)', fontSize: 14, fontWeight: 650, cursor: 'pointer' }}>
         <LogOut size={17} /> Выйти из аккаунта

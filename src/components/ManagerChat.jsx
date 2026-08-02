@@ -44,13 +44,15 @@ export default function ManagerChat({ user, onClose, showToast }) {
     loadConversations()
   }, [loadConversations])
 
+  const activeConvId = activeConv?.id
+
   useEffect(() => {
-    if (activeConv) {
-      loadMessages(activeConv.id)
-      pollingRef.current = setInterval(() => loadMessages(activeConv.id), 5000)
+    if (activeConvId) {
+      loadMessages(activeConvId)
+      pollingRef.current = setInterval(() => loadMessages(activeConvId), 5000)
       return () => clearInterval(pollingRef.current)
     }
-  }, [activeConv?.id, loadMessages])
+  }, [activeConvId, loadMessages])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

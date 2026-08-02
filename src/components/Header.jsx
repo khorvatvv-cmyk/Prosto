@@ -1,4 +1,4 @@
-export default function Header({ onNavigate, onOpenManager, page, user }) {
+export default function Header({ onNavigate, page, user }) {
   const ACCENT = 'var(--color-accent)'
   const INK = 'var(--color-ink)'
   const INK_MUTED = 'var(--color-ink-muted)'
@@ -6,22 +6,33 @@ export default function Header({ onNavigate, onOpenManager, page, user }) {
   const SURFACE_2 = 'var(--color-surface-2)'
   const BORDER = 'var(--color-border)'
 
-  const navItems = [
+  const clientItems = [
     { id: 'dashboard', label: 'Вопросы' },
     { id: 'new', label: 'Задать вопрос' },
     { id: 'important', label: 'Важное' },
     { id: 'notifs', label: 'Уведомления' },
-    ...(user?.role === 'admin' ? [{ id: 'admin', label: 'Админка' }] : []),
-    ...((user?.role === 'specialist' || user?.role === 'admin') ? [{ id: 'specialist', label: 'L1' }] : []),
-    ...((user?.role === 'manager' || user?.role === 'rof' || user?.role === 'admin') ? [{ id: 'manager', label: 'Клиенты' }] : []),
-    ...((user?.role === 'rof' || user?.role === 'admin') ? [{ id: 'rof', label: 'РОФ' }] : []),
   ]
+  const role = user?.role || 'user'
+  const roleItems = {
+    manager: [{ id: 'manager', label: 'АРМ менеджера' }],
+    specialist: [{ id: 'specialist', label: 'АРМ специалиста' }],
+    rof: [{ id: 'rof', label: 'АРМ РОФ' }],
+    admin: [
+      ...clientItems,
+      { id: 'admin', label: 'Админка' },
+      { id: 'specialist', label: 'L1' },
+      { id: 'manager', label: 'Менеджер' },
+      { id: 'rof', label: 'РОФ' },
+    ],
+  }
+  const navItems = roleItems[role] || clientItems
+  const homePage = role === 'manager' ? 'manager' : role === 'specialist' ? 'specialist' : role === 'rof' ? 'rof' : role === 'admin' ? 'admin' : 'dashboard'
 
   const initials = user?.name ? user.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : user?.email?.[0]?.toUpperCase() || '?'
 
   return (
     <header className="flex items-center px-3 md:px-5 flex-shrink-0 gap-2 md:gap-4" style={{ height: 56, borderBottom: `1px solid ${BORDER}`, background: SURFACE, boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}>
-      <div className="flex-shrink-0 cursor-pointer" onClick={() => onNavigate('dashboard')}>
+      <div className="flex-shrink-0 cursor-pointer" onClick={() => onNavigate(homePage)}>
         <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-.03em', color: INK }}>
           просто<span style={{ color: ACCENT }}>.</span>
         </span>
@@ -45,13 +56,13 @@ export default function Header({ onNavigate, onOpenManager, page, user }) {
       </nav>
 
       <div className="flex items-center gap-2.5">
-        <button onClick={() => user?.role === 'user' ? onNavigate('manager-chat') : onOpenManager()} className="inline-flex items-center gap-2 px-3.5 py-1.5 border cursor-pointer"
+        {role === 'user' && <button onClick={() => onNavigate('manager-chat')} className="inline-flex items-center gap-2 px-3.5 py-1.5 border cursor-pointer"
           style={{ borderColor: BORDER, background: SURFACE, fontSize: 13, fontWeight: 500, color: INK, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
           onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.color=ACCENT}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=INK}}>
           <span className="animate-pulse-dot" style={{ width: 8, height: 8, background: ACCENT, borderRadius: '50%', flexShrink: 0 }}></span>
           <span className="hidden md:inline">Команда поддержки</span>
-        </button>
+        </button>}
 
         <span className="hidden md:inline" style={{ fontSize: 13, color: INK_MUTED, whiteSpace: 'nowrap' }}>
           {user?.name || user?.email}

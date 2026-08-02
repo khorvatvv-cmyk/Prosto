@@ -46,12 +46,20 @@ function Tab({ tab, page, onNavigate }) {
 
 export default function MobileTabbar({ onNavigate, page, user }) {
   const role = user?.role
-  const extra = []
-  if (role === 'specialist') extra.push({ key: 'specialist', label: 'L1', icon: Headphones })
-  if (role === 'manager' || role === 'rof' || role === 'admin') extra.push({ key: 'manager', label: 'Клиенты', icon: Briefcase })
-  if (role === 'rof' || role === 'admin') extra.push({ key: 'rof', label: 'РОФ', icon: BarChart })
-  if (role === 'admin') extra.push({ key: 'admin', label: 'Админ', icon: ShieldCheck })
-  const tabs = [...TABS, ...extra]
+  const profile = { key: 'profile', label: 'Профиль', icon: User }
+  const tabsByRole = {
+    manager: [{ key: 'manager', label: 'АРМ', icon: Briefcase }, profile],
+    specialist: [{ key: 'specialist', label: 'АРМ', icon: Headphones }, profile],
+    rof: [{ key: 'rof', label: 'АРМ РОФ', icon: BarChart }, profile],
+    admin: [
+      { key: 'admin', label: 'Админ', icon: ShieldCheck },
+      { key: 'manager', label: 'Менеджер', icon: Briefcase },
+      { key: 'specialist', label: 'L1', icon: Headphones },
+      { key: 'rof', label: 'РОФ', icon: BarChart },
+      profile,
+    ],
+  }
+  const tabs = tabsByRole[role] || TABS
 
   return (
     <nav

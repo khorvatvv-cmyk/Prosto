@@ -1,6 +1,6 @@
 import { MessageCircle, Star, Bell, User, Phone, LogOut, Headphones, Briefcase, BarChart } from 'lucide-react'
 
-export default function Sidebar({ onNavigate, onOpenManager, page, onLogout, user }) {
+export default function Sidebar({ onNavigate, page, onLogout, user }) {
   const A = 'var(--color-accent)'
   const INK = 'var(--color-ink)'
   const INK_MUTED = 'var(--color-ink-muted)'
@@ -8,14 +8,23 @@ export default function Sidebar({ onNavigate, onOpenManager, page, onLogout, use
   const SURFACE_2 = 'var(--color-surface-2)'
   const BORDER = 'var(--color-border)'
 
-  const items = [
+  const clientItems = [
     { id: 'dashboard', label: 'Мои вопросы', icon: MessageCircle, action: () => onNavigate('dashboard') },
     { id: 'important', label: 'Важное для вас', icon: Star, action: () => onNavigate('important') },
     { id: 'notifs', label: 'Уведомления', icon: Bell, action: () => onNavigate('notifs') },
-    ...((user?.role === 'specialist' || user?.role === 'admin') ? [{ id: 'specialist', label: 'Рабочее место L1', icon: Headphones, action: () => onNavigate('specialist') }] : []),
-    ...((user?.role === 'manager' || user?.role === 'rof' || user?.role === 'admin') ? [{ id: 'manager', label: 'АРМ Менеджера', icon: Briefcase, action: () => onNavigate('manager') }] : []),
-    ...((user?.role === 'rof' || user?.role === 'admin') ? [{ id: 'rof', label: 'РОФ', icon: BarChart, action: () => onNavigate('rof') }] : []),
   ]
+  const roleItems = {
+    manager: [{ id: 'manager', label: 'АРМ менеджера', icon: Briefcase, action: () => onNavigate('manager') }],
+    specialist: [{ id: 'specialist', label: 'АРМ специалиста', icon: Headphones, action: () => onNavigate('specialist') }],
+    rof: [{ id: 'rof', label: 'АРМ РОФ', icon: BarChart, action: () => onNavigate('rof') }],
+    admin: [
+      ...clientItems,
+      { id: 'specialist', label: 'Рабочее место L1', icon: Headphones, action: () => onNavigate('specialist') },
+      { id: 'manager', label: 'АРМ менеджера', icon: Briefcase, action: () => onNavigate('manager') },
+      { id: 'rof', label: 'АРМ РОФ', icon: BarChart, action: () => onNavigate('rof') },
+    ],
+  }
+  const items = roleItems[user?.role] || clientItems
 
   const itemStyle = (active) => ({
     display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
@@ -56,12 +65,12 @@ export default function Sidebar({ onNavigate, onOpenManager, page, onLogout, use
             <User size={18} strokeWidth={1.5} />
             Профиль
           </button>
-          <button onClick={() => user?.role === 'user' ? onNavigate('manager-chat') : onOpenManager()} style={itemStyle(false)}
+          {user?.role === 'user' && <button onClick={() => onNavigate('manager-chat')} style={itemStyle(false)}
             onMouseEnter={e => { e.currentTarget.style.background = SURFACE_2; e.currentTarget.style.color = INK }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = INK_MUTED }}>
             <Phone size={18} strokeWidth={1.5} />
             Связаться с менеджером
-          </button>
+          </button>}
           <button onClick={onLogout} style={itemStyle(false)}
             onMouseEnter={e => { e.currentTarget.style.background = SURFACE_2; e.currentTarget.style.color = INK }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = INK_MUTED }}>

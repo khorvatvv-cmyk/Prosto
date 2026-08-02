@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from './useAuth.js'
 import { requestsApi } from './api.js'
 import LoginScreen from './components/LoginScreen.jsx'
@@ -14,15 +14,22 @@ import Header from './components/Header.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import MobileTabbar from './components/MobileTabbar.jsx'
 import AdminPanel from './components/AdminPanel.jsx'
+import OnboardingProfile from './components/OnboardingProfile.jsx'
 
 export default function App() {
-  const { user, loading, login, register, logout } = useAuth()
+  const { user, setUser, loading, login, register: rawRegister, logout } = useAuth()
+  const register = useCallback(async (email, password, inn, name, onProgress) => {
+    const u = await rawRegister(email, password, inn, name, onProgress)
+    setShowOnboarding(true)
+    return u
+  }, [rawRegister])
   const [page, setPage] = useState('dashboard')
   const [requests, setRequests] = useState([])
   const [filter, setFilter] = useState('all')
   const [currentRequestId, setCurrentRequestId] = useState(null)
   const [managerOpen, setManagerOpen] = useState(false)
   const [toast, setToast] = useState(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   const showToast = (msg) => {
     setToast(msg)
@@ -99,6 +106,10 @@ export default function App() {
     return <LoginScreen onLogin={login} onRegister={register} />
   }
 
+  if (showOnboarding) {
+    return <OnboardingProfile user={user} onComplete={() => setShowOnboarding(false)} />
+  }
+
   const currentRequest = requests.find(r => r.id === currentRequestId)
 
   return (
@@ -135,7 +146,7 @@ export default function App() {
               <Important onOpenManager={() => setManagerOpen(true)} />
             )}
             {page === 'profile' && (
-              <Profile user={user} onOpenManager={() => setManagerOpen(true)} onLogout={logout} />
+              <Profile user={user} onOpenManager={() => setManagerOpen(true)} onLogout={logout} onUpdateUser={setUser} />
             )}
             {page === 'notifs' && (
               <Notifications requests={requests} onOpenDetail={openDetail} />

@@ -47,11 +47,32 @@ function publicUser(user) {
     name: user.name,
     organization: user.organization,
     role: user.role || 'user',
+    activity_type: user.activity_type || '',
+    software_product: user.software_product || '',
+    product_version: user.product_version || '',
+    config_type: user.config_type || '',
+    customizations: user.customizations || '',
   }
 }
 
 function assistantStatus(env) {
   return isAssistantConfigured(env) ? 'configured' : 'not_configured'
+}
+
+function buildClientContext(user) {
+  const lines = []
+  if (user.activity_type) lines.push(`Вид деятельности: ${user.activity_type}`)
+  if (user.software_product) lines.push(`Программный продукт: ${user.software_product}`)
+  if (user.product_version) lines.push(`Версия: ${user.product_version}`)
+  if (user.config_type) lines.push(`Конфигурация: ${user.config_type}`)
+  if (user.customizations) lines.push(`Что доработано: ${user.customizations}`)
+  return lines.length ? lines.join('\n') : null
+}
+
+function buildContextualMessage(message, user) {
+  const context = buildClientContext(user)
+  if (!context) return message
+  return `Данные клиента:\n${context}\n\nВопрос клиента:\n${message}`
 }
 
 function passwordSecret(env) {
@@ -64,7 +85,7 @@ async function findUserByEmail(env, email) {
 
 async function findUserById(env, id) {
   return env.DB.prepare(
-    'SELECT id, email, inn, name, organization, role, created_at FROM users WHERE id = ?',
+    'SELECT id, email, inn, name, organization, role, activity_type, software_product, product_version, config_type, customizations, created_at FROM users WHERE id = ?',
   ).bind(id).first()
 }
 
@@ -140,6 +161,23 @@ async function createAdminOnFirstLogin(env, email, password) {
     "INSERT INTO users (email, password, name, role) VALUES (?, ?, 'Администратор', 'admin')",
   ).bind(adminEmail, passwordHash).run()
   return findUserByEmail(env, adminEmail)
+}
+
+async function handleProfileUpdate(request, env) {
+  const user = await authenticate(request, env)
+  const body = await requestBody(request)
+  const allowedFields = ['activity_type', 'software_product', 'product_version', 'config_type', 'customizations']
+  const updates = {}
+  for (const field of allowedFields) {
+    if (field in body) updates[field] = String(body[field] || '').trim().slice(0, 2000)
+  }
+  if (!Object.keys(updates).length) throw httpError(400, 'Нет допустимых изменений')
+  const assignments = Object.keys(updates).map(key => `${key} = ?`).join(', ')
+  await env.DB.prepare(`UPDATE users SET ${assignments} WHERE id = ?`)
+    .bind(...Object.values(updates), user.id)
+    .run()
+  const updated = await findUserById(env, user.id)
+  return json({ user: publicUser(updated) })
 }
 
 async function handleHealth(env) {
@@ -239,7 +277,9 @@ async function handleInitialAssistantAnswer(request, env, id) {
   }
 
   const text = String(item.description || item.title || '').trim()
-  const result = await askAssistant(text, item.assistant_thread_id, env)
+  const fullUser = await findUserById(env, user.id)
+  const contextualMessage = buildContextualMessage(text, fullUser)
+  const result = await askAssistant(contextualMessage, item.assistant_thread_id, env)
   const assistantMessage = await addMessage(env, id, 'assistant', result.text)
   const updatedRequest = await updateRequest(env, id, {
     ...(result.threadId ? { assistant_thread_id: result.threadId } : {}),
@@ -285,7 +325,9 @@ async function handleRequestMessage(request, env, id) {
   await addMessage(env, id, 'user', text)
 
   if (item.level === 'l0') {
-    const result = await askAssistant(text, item.assistant_thread_id, env)
+    const fullUser = await findUserById(env, user.id)
+    const contextualMessage = buildContextualMessage(text, fullUser)
+    const result = await askAssistant(contextualMessage, item.assistant_thread_id, env)
     await addMessage(env, id, 'assistant', result.text)
     await updateRequest(env, id, {
       ...(result.threadId ? { assistant_thread_id: result.threadId } : {}),
@@ -356,7 +398,7 @@ async function handleAdminStats(request, env) {
 async function handleAdminUsers(request, env) {
   await adminContext(request, env)
   const result = await env.DB.prepare(
-    'SELECT id, email, inn, name, organization, role, created_at FROM users ORDER BY created_at DESC, id DESC',
+    'SELECT id, email, inn, name, organization, role, activity_type, software_product, product_version, config_type, customizations, created_at FROM users ORDER BY created_at DESC, id DESC',
   ).all()
   return json({ users: result.results || [] })
 }
@@ -455,7 +497,7 @@ async function handleApi(request, env) {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-        'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, OPTIONS',
       },
     })
   }
@@ -466,6 +508,7 @@ async function handleApi(request, env) {
     const user = await authenticate(request, env)
     return json({ user: publicUser(user) })
   }
+  if (method === 'PUT' && path === '/profile') return handleProfileUpdate(request, env)
   if (method === 'GET' && path === '/requests') return handleRequestsList(request, env)
   if (method === 'POST' && path === '/requests') return handleRequestCreate(request, env)
   if (method === 'POST' && path === '/manager/messages') return handleManagerMessage(request, env)

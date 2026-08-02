@@ -91,6 +91,10 @@ export const systemApi = {
   wake: () => api('/health', {}, { maxAttempts: 1, timeoutMs: 8000 }),
 }
 
+export const profileApi = {
+  update: (data) => api('/profile', { method: 'PUT', body: JSON.stringify(data) }, { maxAttempts: 1, timeoutMs: 10000 }),
+}
+
 export const adminApi = {
   stats: () => api('/admin/stats'),
   users: () => api('/admin/users'),

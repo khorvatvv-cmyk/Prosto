@@ -54,5 +54,5 @@ export function useAuth() {
     setUser(null)
   }, [])
 
-  return { user, loading, login, register, logout }
+  return { user, setUser, loading, login, register, logout }
 }

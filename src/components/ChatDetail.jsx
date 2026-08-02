@@ -1,7 +1,15 @@
-﻿import { useState, useEffect } from 'react'
+﻿import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowLeft, Phone, Send, CheckCircle2, AlertCircle } from 'lucide-react'
 import { requestsApi } from '../api.js'
-import { useCallback, useRef } from 'react'
+
+function formatMessageText(text) {
+  if (!text) return null
+  const paragraphs = text.split(/\n+/).filter(p => p.trim())
+  if (!paragraphs.length) return text
+  return paragraphs.map((p, i) => (
+    <p key={i} style={{ margin: i > 0 ? '10px 0 0' : '0', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{p}</p>
+  ))
+}
 
 export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate, onNavigate, showToast }) {
   const [messages, setMessages] = useState([])
@@ -10,6 +18,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [requestState, setRequestState] = useState(request)
+  const [waitingAssistant, setWaitingAssistant] = useState(false)
   const assistantRequested = useRef(false)
   const showToastRef = useRef(showToast)
   showToastRef.current = showToast
@@ -29,6 +38,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
       const shouldRequestAnswer = !hasAnswer && data.request?.status === 'open' && data.request?.level === 'l0'
       if (shouldRequestAnswer && !assistantRequested.current) {
         assistantRequested.current = true
+        setWaitingAssistant(true)
         try {
           const answer = await requestsApi.requestAssistant(request.id)
           setMessages(answer.message ? [...(data.messages || []), answer.message] : (data.messages || []))
@@ -38,6 +48,8 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
           console.error('Assistant request error:', error)
           setPolling(false)
           showToastRef.current('Ассистент не ответил. Можно повторить запрос или подключить специалиста.')
+        } finally {
+          setWaitingAssistant(false)
         }
       } else if (hasAnswer || data.request?.status !== 'open' || data.request?.level !== 'l0') {
         setPolling(false)
@@ -54,6 +66,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     setPolling(true)
     setMessages([])
     setRequestState(request)
+    setWaitingAssistant(false)
     assistantRequested.current = false
     loadMessages()
   }, [request, loadMessages])
@@ -66,9 +79,10 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
 
   const handleSend = async () => {
     const text = input.trim()
-    if (!text) return
+    if (!text || sending || waitingAssistant) return
     setSending(true)
     setInput('')
+    setWaitingAssistant(true)
     try {
       const data = await requestsApi.sendMessage(activeRequest.id, text)
       if (data.message) {
@@ -81,6 +95,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
       showToast(`Ошибка отправки: ${e.message}`)
     } finally {
       setSending(false)
+      setWaitingAssistant(false)
     }
   }
 
@@ -101,7 +116,11 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
 
   const isL0 = activeRequest.level === 'l0' && activeRequest.status !== 'done'
   const isDone = activeRequest.status === 'done'
-  const hasAssistantReply = messages.some(m => m.sender === 'assistant')
+  const assistantMessages = messages.filter(m => m.sender === 'assistant')
+  const userMessages = messages.filter(m => m.sender === 'user')
+  const hasAssistantReply = assistantMessages.length > 0
+  const showEvaluation = isL0 && hasAssistantReply && !isDone && userMessages.length >= 3
+  const showComposer = !isDone && isL0 && hasAssistantReply && !waitingAssistant
 
   const badgeText = isDone ? 'Решено' : isL0 ? 'Ищем решение' : 'В работе'
   const badgeColor = isDone ? M : isL0 ? A : INK
@@ -157,7 +176,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
               </div>
             ) : (
               <>
-                {/* Messages from server */}
+                {/* Messages */}
                 {messages.map((msg, i) => (
                   <div key={i} style={{
                     maxWidth: 480, padding: '14px 18px',
@@ -179,12 +198,12 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                         Вы
                       </div>
                     )}
-                    {msg.text}
+                    {msg.sender === 'assistant' ? formatMessageText(msg.text) : msg.text}
                   </div>
                 ))}
 
                 {/* Loading — waiting for assistant */}
-                {isL0 && !hasAssistantReply && !loading && polling && (
+                {waitingAssistant && !loading && (
                   <div style={{ textAlign: 'center', padding: 20, color: M, fontSize: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both' }}></span>
@@ -196,7 +215,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                   </div>
                 )}
 
-                {isL0 && !hasAssistantReply && !loading && !polling && (
+                {isL0 && !hasAssistantReply && !loading && !polling && !waitingAssistant && (
                   <div style={{ textAlign: 'center', padding: 20, color: M, fontSize: 14 }}>
                     <div style={{ marginBottom: 10 }}>Ассистент не успел подготовить ответ.</div>
                     <button onClick={retryAssistant}
@@ -206,11 +225,11 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                   </div>
                 )}
 
-                {/* Evaluation buttons */}
-                {isL0 && hasAssistantReply && !isDone && (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 13, color: M, marginBottom: 10 }}>Помогло решение?</div>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {/* Evaluation buttons — only after 3+ user messages */}
+                {showEvaluation && (
+                  <div style={{ marginTop: 8, padding: '12px 16px', background: S2, borderRadius: 10, alignSelf: 'center', maxWidth: 420 }}>
+                    <div style={{ fontSize: 13, color: M, marginBottom: 10, textAlign: 'center' }}>Помогло решение?</div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
                       <button onClick={() => handleEvaluate(true)}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
                         onMouseEnter={e=>{e.currentTarget.style.background=INK;e.currentTarget.style.color='#fff'}}
@@ -237,11 +256,11 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
             )}
           </div>
 
-          {/* COMPOSER */}
-          {!isDone && (!isL0 || hasAssistantReply) && (
+          {/* COMPOSER — visible whenever L0, has reply, not done, not waiting */}
+          {showComposer && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 22px', borderTop: `1px solid ${BD}`, background: S }}>
-              <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSend() }}
-                placeholder="Напишите сообщение…"
+              <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                placeholder="Уточните вопрос или задайте новый…"
                 style={{ flex: 1, border: `1px solid ${BD}`, background: S2, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: INK, padding: '11px 15px', borderRadius: 8, transition: 'all .2s' }}
                 onFocus={e => { e.target.style.borderColor = A; e.target.style.boxShadow = '0 0 0 4px rgba(229,0,113,.1)' }}
                 onBlur={e => { e.target.style.borderColor = BD; e.target.style.boxShadow = 'none' }} />

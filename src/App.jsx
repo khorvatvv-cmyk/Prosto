@@ -53,6 +53,15 @@ export default function App() {
     if (user) loadRequests()
   }, [user])
 
+  useEffect(() => {
+    if (!user) return
+    const r = user.role
+    if (r === 'rof') setPage('rof')
+    else if (r === 'manager') setPage('manager')
+    else if (r === 'specialist') setPage('specialist')
+    else setPage('dashboard')
+  }, [user?.role])
+
   const goTo = (p) => {
     setPage(p)
     if (p === 'dashboard') {

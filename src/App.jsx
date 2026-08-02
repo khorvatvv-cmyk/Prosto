@@ -9,7 +9,7 @@ import Important from './components/Important.jsx'
 import Profile from './components/Profile.jsx'
 import Notifications from './components/Notifications.jsx'
 import ManagerModal from './components/ManagerModal.jsx'
-import ManagerChat from './components/ManagerChat.jsx'
+import ClientManagerChat from './components/ClientManagerChat.jsx'
 import Toast from './components/Toast.jsx'
 import Header from './components/Header.jsx'
 import Sidebar from './components/Sidebar.jsx'
@@ -156,7 +156,10 @@ export default function App() {
               />
             )}
             {page === 'important' && (
-              <Important showToast={showToast} onOpenManager={() => setManagerOpen(true)} />
+              <Important showToast={showToast} onNavigate={goTo} />
+            )}
+            {page === 'manager-chat' && user?.role === 'user' && (
+              <ClientManagerChat user={user} showToast={showToast} />
             )}
             {page === 'profile' && (
               <Profile user={user} onOpenManager={() => setManagerOpen(true)} onLogout={logout} onUpdateUser={setUser} />
@@ -180,7 +183,6 @@ export default function App() {
         </main>
       </div>
       <MobileTabbar onNavigate={goTo} page={page} user={user} />
-      {managerOpen && user?.role === 'user' && <ManagerChat user={user} onClose={() => setManagerOpen(false)} showToast={showToast} />}
       {managerOpen && user?.role !== 'user' && <ManagerModal onClose={() => setManagerOpen(false)} onSend={messageManager} />}
       {toast && <Toast message={toast} />}
     </div>

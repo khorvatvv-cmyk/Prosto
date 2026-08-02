@@ -154,6 +154,16 @@ export default function ManagerPanel({ user, showToast }) {
   const [clientMsgText, setClientMsgText] = useState('')
   const [sendingClientMsg, setSendingClientMsg] = useState(false)
 
+  const [showNewChat, setShowNewChat] = useState(false)
+  const [clientsForChat, setClientsForChat] = useState([])
+  const [clientsChatLoading, setClientsChatLoading] = useState(false)
+  const [newChatOrgId, setNewChatOrgId] = useState('')
+  const [newChatUserId, setNewChatUserId] = useState('')
+  const [newChatUsers, setNewChatUsers] = useState([])
+  const [newChatUsersLoading, setNewChatUsersLoading] = useState(false)
+  const [newChatText, setNewChatText] = useState('')
+  const [newChatSending, setNewChatSending] = useState(false)
+
   const loadDashboard = useCallback(async () => {
     try {
       const data = await managerApi.dashboard()
@@ -297,6 +307,10 @@ export default function ManagerPanel({ user, showToast }) {
     setMsgText('')
     setShowCreateCampaign(false)
     setDeliveriesFor(null)
+    setShowNewChat(false)
+    setNewChatOrgId('')
+    setNewChatUserId('')
+    setNewChatText('')
   }
 
   const setBusyKey = (key, val) => setBusy(prev => ({ ...prev, [key]: val }))
@@ -392,6 +406,56 @@ export default function ManagerPanel({ user, showToast }) {
       showToast(e.message || 'Не удалось отправить сообщение')
     } finally {
       setSendingClientMsg(false)
+    }
+  }
+
+  const openNewChat = async () => {
+    setShowNewChat(!showNewChat)
+    if (!showNewChat && clientsForChat.length === 0) {
+      setClientsChatLoading(true)
+      try {
+        const data = await managerApi.clients('mine')
+        setClientsForChat(data.clients || [])
+      } catch (e) {
+        showToast('Ошибка загрузки клиентов: ' + e.message)
+      } finally {
+        setClientsChatLoading(false)
+      }
+    }
+  }
+
+  const loadOrgUsers = async (orgId) => {
+    setNewChatOrgId(orgId)
+    setNewChatUserId('')
+    setNewChatUsers([])
+    if (!orgId) return
+    setNewChatUsersLoading(true)
+    try {
+      const data = await managerApi.orgDetail(orgId)
+      setNewChatUsers(data.users || [])
+    } catch (e) {
+      showToast('Ошибка загрузки пользователей: ' + e.message)
+    } finally {
+      setNewChatUsersLoading(false)
+    }
+  }
+
+  const handleSendNewChat = async () => {
+    const text = newChatText.trim()
+    if (!text || !newChatUserId) return
+    setNewChatSending(true)
+    try {
+      await chatApi.send(text, null, newChatUserId)
+      setNewChatText('')
+      setNewChatUserId('')
+      setNewChatOrgId('')
+      setShowNewChat(false)
+      showToast('Сообщение отправлено')
+      await loadConversations()
+    } catch (e) {
+      showToast(e.message || 'Не удалось отправить сообщение')
+    } finally {
+      setNewChatSending(false)
     }
   }
 
@@ -840,6 +904,74 @@ export default function ManagerPanel({ user, showToast }) {
             </div>
           ) : (
             <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: INK }}>Активные чаты</div>
+                <button onClick={openNewChat}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: showNewChat ? S : A, color: showNewChat ? INK : '#fff', border: showNewChat ? `1px solid ${BD}` : 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Send size={14} /> Написать клиенту
+                </button>
+              </div>
+
+              {showNewChat && (
+                <div style={{ marginBottom: 16, padding: 16, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: INK, marginBottom: 12 }}>Новое сообщение клиенту</div>
+                  {clientsChatLoading ? (
+                    <div style={{ textAlign: 'center', color: M, padding: 12 }}>Загрузка клиентов…</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Организация</div>
+                        <select value={newChatOrgId} onChange={e => loadOrgUsers(e.target.value)}
+                          style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 8px', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', boxSizing: 'border-box', background: S }}>
+                          <option value="">Выберите организацию</option>
+                          {clientsForChat.map(org => (
+                            <option key={org.id} value={org.id}>{org.name || '—'}{org.inn ? ` (ИНН ${org.inn})` : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {newChatOrgId && (
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Пользователь</div>
+                          {newChatUsersLoading ? (
+                            <div style={{ fontSize: 13, color: M }}>Загрузка пользователей…</div>
+                          ) : (
+                            <select value={newChatUserId} onChange={e => setNewChatUserId(e.target.value)}
+                              style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 8px', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', boxSizing: 'border-box', background: S }}>
+                              <option value="">Выберите пользователя</option>
+                              {newChatUsers.map(u => (
+                                <option key={u.id} value={u.id}>{u.name || u.email || '—'}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Сообщение</div>
+                        <textarea
+                          value={newChatText}
+                          onChange={e => setNewChatText(e.target.value)}
+                          placeholder="Текст сообщения…"
+                          rows={3}
+                          style={{ width: '100%', boxSizing: 'border-box', padding: 10, border: `1px solid ${BD}`, borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }}
+                          onFocus={e => e.target.style.borderColor = A}
+                          onBlur={e => e.target.style.borderColor = BD}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={handleSendNewChat} disabled={newChatSending || !newChatText.trim() || !newChatUserId}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: newChatText.trim() && newChatUserId ? A : S2, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: newChatText.trim() && newChatUserId ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                          <Send size={14} /> {newChatSending ? 'Отправка…' : 'Отправить'}
+                        </button>
+                        <button onClick={() => { setShowNewChat(false); setNewChatOrgId(''); setNewChatUserId(''); setNewChatText('') }}
+                          style={{ height: 34, padding: '0 16px', background: S, color: M, border: `1px solid ${BD}`, borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Отмена
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {convosLoading ? (
                 <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка чатов…</div>
               ) : conversations.length === 0 ? (

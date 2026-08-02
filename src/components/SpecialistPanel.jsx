@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Send, ClipboardList, UserCheck, FileQuestion, CheckCircle2, RotateCcw, Lock, Search, ArrowLeftRight } from 'lucide-react'
+import { ArrowLeft, Send, ClipboardList, UserCheck, FileQuestion, CheckCircle2, RotateCcw, Lock, Search, ArrowLeftRight, MessageCircle } from 'lucide-react'
 import { specialistApi } from '../api.js'
 
 function formatMessageText(text) {
@@ -62,6 +62,8 @@ export default function SpecialistPanel({ user, showToast }) {
   const [transferDiagnosis, setTransferDiagnosis] = useState('')
   const [transferExpected, setTransferExpected] = useState('')
   const [transferPriority, setTransferPriority] = useState('normal')
+  const [clientChatMessages, setClientChatMessages] = useState([])
+  const [clientChatLoading, setClientChatLoading] = useState(false)
 
   const A = '#E50071', INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
@@ -107,13 +109,30 @@ export default function SpecialistPanel({ user, showToast }) {
     setSelectedRequest(id)
     setDetailLoading(true)
     setDetailData(null)
+    setClientChatMessages([])
     try {
       const data = await specialistApi.requestDetail(id)
       setDetailData(data)
+      if (data?.request?.user_id) {
+        loadClientChat(data.request.user_id)
+      }
     } catch (e) {
       showToast('Ошибка загрузки обращения: ' + e.message)
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  const loadClientChat = async (userId) => {
+    if (!userId) return
+    setClientChatLoading(true)
+    try {
+      const data = await specialistApi.clientChat(userId)
+      setClientChatMessages(data.messages || [])
+    } catch (e) {
+      console.error('Client chat load error:', e)
+    } finally {
+      setClientChatLoading(false)
     }
   }
 
@@ -337,6 +356,36 @@ export default function SpecialistPanel({ user, showToast }) {
                 ))}
                 {messages.length === 0 && <div style={{ color: M, fontSize: 14 }}>Нет сообщений</div>}
               </div>
+
+              {clientChatMessages.length > 0 && (
+                <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <MessageCircle size={16} color={A} />
+                    <div style={{ fontSize: 13, fontWeight: 700, color: INK }}>Переписка клиента с менеджером</div>
+                  </div>
+                  {clientChatLoading ? (
+                    <div style={{ textAlign: 'center', color: M, padding: 20 }}>Загрузка…</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+                      {clientChatMessages.map((msg, i) => {
+                        const isClient = msg.role === 'user' || msg.sender_id === clientChatMessages._user_id
+                        return (
+                          <div key={msg.id || i} style={{
+                            padding: '8px 12px', borderRadius: 8, fontSize: 13, lineHeight: 1.5,
+                            background: isClient ? S2 : '#FFF0F7',
+                            border: `1px solid ${isClient ? BD : '#FBCFE8'}`,
+                          }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: M, marginBottom: 2 }}>
+                              {isClient ? 'Клиент' : msg.sender_name || 'Менеджер'}
+                            </div>
+                            <div style={{ color: INK }}>{msg.text}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Actions */}
               {isWaiting && !isAssigned && (

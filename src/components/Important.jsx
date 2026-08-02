@@ -16,7 +16,7 @@ const CATEGORY_LABELS = {
   event: 'Событие',
 }
 
-export default function Important({ showToast }) {
+export default function Important({ showToast, onNavigate }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState({})
@@ -48,7 +48,7 @@ export default function Important({ showToast }) {
     setBusyKey(id, true)
     try {
       await feedApi.action(id, 'manager')
-      if (showToast) showToast('Передали запрос команде сопровождения')
+      if (onNavigate) onNavigate('manager-chat')
     } catch (e) {
       if (showToast) showToast('Ошибка: ' + e.message)
     } finally {

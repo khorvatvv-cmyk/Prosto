@@ -122,6 +122,7 @@ export const specialistApi = {
   needData: (id, text) => api(`/specialist/requests/${id}/need-data`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1 }),
   result: (id, text) => api(`/specialist/requests/${id}/result`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1 }),
   transferToManager: (id, data) => api(`/specialist/requests/${id}/transfer-to-manager`, { method: 'POST', body: JSON.stringify(data) }, { maxAttempts: 1 }),
+  clientChat: (userId) => api('/specialist/client-chat?user_id=' + userId),
 }
 
 export const managerApi = {
@@ -146,7 +147,7 @@ export const rofApi = {
 export const chatApi = {
   list: () => api('/chat/list'),
   messages: (convId) => api(`/chat/${convId}/messages`),
-  send: (text, convId) => api('/chat/send', { method: 'POST', body: JSON.stringify({ text, conversation_id: convId }) }),
+  send: (text, convId, clientUserId) => api('/chat/send', { method: 'POST', body: JSON.stringify({ text, conversation_id: convId, client_user_id: clientUserId }) }),
 }
 
 export const campaignApi = {

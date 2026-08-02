@@ -45,7 +45,7 @@ export default function Header({ onNavigate, onOpenManager, page, user }) {
       </nav>
 
       <div className="flex items-center gap-2.5">
-        <button onClick={onOpenManager} className="inline-flex items-center gap-2 px-3.5 py-1.5 border cursor-pointer"
+        <button onClick={() => user?.role === 'user' ? onNavigate('manager-chat') : onOpenManager()} className="inline-flex items-center gap-2 px-3.5 py-1.5 border cursor-pointer"
           style={{ borderColor: BORDER, background: SURFACE, fontSize: 13, fontWeight: 500, color: INK, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
           onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.color=ACCENT}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=INK}}>

@@ -56,7 +56,7 @@ export default function Sidebar({ onNavigate, onOpenManager, page, onLogout, use
             <User size={18} strokeWidth={1.5} />
             Профиль
           </button>
-          <button onClick={onOpenManager} style={itemStyle(false)}
+          <button onClick={() => user?.role === 'user' ? onNavigate('manager-chat') : onOpenManager()} style={itemStyle(false)}
             onMouseEnter={e => { e.currentTarget.style.background = SURFACE_2; e.currentTarget.style.color = INK }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = INK_MUTED }}>
             <Phone size={18} strokeWidth={1.5} />

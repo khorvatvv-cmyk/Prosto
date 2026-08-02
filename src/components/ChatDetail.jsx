@@ -117,9 +117,8 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const isL0 = activeRequest.level === 'l0' && activeRequest.status !== 'done'
   const isDone = activeRequest.status === 'done'
   const assistantMessages = messages.filter(m => m.sender === 'assistant')
-  const userMessages = messages.filter(m => m.sender === 'user')
   const hasAssistantReply = assistantMessages.length > 0
-  const showEvaluation = isL0 && hasAssistantReply && !isDone && userMessages.length >= 3
+  const showEvaluation = isL0 && hasAssistantReply && !isDone
   const showComposer = !isDone && isL0 && hasAssistantReply && !waitingAssistant
 
   const badgeText = isDone ? 'Решено' : isL0 ? 'Ищем решение' : 'В работе'

@@ -106,6 +106,7 @@ export const adminApi = {
     body: JSON.stringify({ message }),
   }, { maxAttempts: 1, timeoutMs: 30000 }),
   setUserRole: (id, role) => api(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }, { maxAttempts: 1 }),
+  createSpecialist: (email, password, name) => api('/admin/specialists', { method: 'POST', body: JSON.stringify({ email, password, name }) }, { maxAttempts: 1, timeoutMs: 15000 }),
   assignSpecialist: (id, specialistId) => api(`/admin/requests/${id}/assign`, { method: 'POST', body: JSON.stringify({ specialist_id: specialistId }) }, { maxAttempts: 1 }),
 }
 

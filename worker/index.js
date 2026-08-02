@@ -725,6 +725,32 @@ async function handleAdminAssign(request, env, id) {
   return json({ request: await requestWithClientInfo(env, id) })
 }
 
+async function handleAdminCreateSpecialist(request, env) {
+  await adminContext(request, env)
+  const body = await requestBody(request)
+  const email = normalizeEmail(body.email)
+  const password = String(body.password || '')
+  const name = String(body.name || '').trim()
+
+  if (!email || !password) throw httpError(400, 'Email и пароль обязательны')
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw httpError(400, 'Укажите корректный email')
+  if (password.length < 8) throw httpError(400, 'Пароль должен содержать не менее 8 символов')
+  if (await findUserByEmail(env, email)) throw httpError(409, 'Пользователь с таким email уже существует')
+
+  const passwordHash = await hashPassword(password, passwordSecret(env))
+  let result
+  try {
+    result = await env.DB.prepare(
+      "INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, 'specialist')",
+    ).bind(email, passwordHash, name || 'Специалист L1').run()
+  } catch (error) {
+    if (String(error.message).includes('UNIQUE')) throw httpError(409, 'Пользователь с таким email уже существует')
+    throw error
+  }
+  const user = await findUserById(env, result.meta.last_row_id)
+  return json({ user: publicUser(user) }, 201)
+}
+
 async function handleApi(request, env) {
   const url = new URL(request.url)
   const path = url.pathname.slice(API_PREFIX.length) || '/'
@@ -766,6 +792,7 @@ async function handleApi(request, env) {
   if (method === 'GET' && path === '/admin/requests') return handleAdminRequests(request, env)
   if (method === 'GET' && path === '/admin/organizations') return handleAdminOrganizations(request, env)
   if (method === 'POST' && path === '/admin/test-assistant') return handleAdminAssistantTest(request, env)
+  if (method === 'POST' && path === '/admin/specialists') return handleAdminCreateSpecialist(request, env)
 
   match = path.match(/^\/admin\/requests\/(\d+)\/messages$/)
   if (match && method === 'GET') return handleAdminRequestMessages(request, env, Number(match[1]))

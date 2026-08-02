@@ -13,6 +13,11 @@ export default function AdminPanel() {
   const [testing, setTesting] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [messages, setMessages] = useState([])
+  const [newSpecEmail, setNewSpecEmail] = useState('')
+  const [newSpecPassword, setNewSpecPassword] = useState('')
+  const [newSpecName, setNewSpecName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
 
   const A = '#E50071', INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
@@ -72,6 +77,23 @@ export default function AdminPanel() {
     }
   }
 
+  async function createSpecialist() {
+    if (!newSpecEmail.trim() || !newSpecPassword.trim()) return
+    setCreating(true)
+    setCreateError('')
+    try {
+      await adminApi.createSpecialist(newSpecEmail.trim(), newSpecPassword, newSpecName.trim())
+      setNewSpecEmail('')
+      setNewSpecPassword('')
+      setNewSpecName('')
+      await load()
+    } catch (e) {
+      setCreateError(e.message || 'Не удалось создать')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка админ-панели…</div>
   }
@@ -79,6 +101,7 @@ export default function AdminPanel() {
   const tabs = [
     { id: 'dashboard', label: 'Обзор' },
     { id: 'users', label: 'Пользователи' },
+    { id: 'specialists', label: 'Специалисты' },
     { id: 'orgs', label: 'Организации' },
     { id: 'requests', label: 'Вопросы' },
     { id: 'test', label: 'Тест ассистента' },
@@ -234,6 +257,64 @@ export default function AdminPanel() {
             </tbody>
           </table>
           {users.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: M }}>Нет пользователей</div>}
+        </div>
+      )}
+
+      {/* === SPECIALISTS === */}
+      {tab === 'specialists' && (
+        <div>
+          {/* Create form */}
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 500 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Добавить специалиста L1</h3>
+            <p style={{ fontSize: 13, color: M, marginBottom: 16 }}>Специалист сможет входить в приложение и видеть обращения на линии L1.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input type="text" value={newSpecName} onChange={e => setNewSpecName(e.target.value)} placeholder="Имя специалиста"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              <input type="email" value={newSpecEmail} onChange={e => setNewSpecEmail(e.target.value)} placeholder="Email"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              <input type="password" value={newSpecPassword} onChange={e => setNewSpecPassword(e.target.value)} placeholder="Пароль (мин. 8 символов)"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              {createError && <div style={{ fontSize: 13, color: A, padding: '8px 12px', background: '#FFF0F7', borderRadius: 8 }}>{createError}</div>}
+              <button onClick={createSpecialist} disabled={creating || !newSpecEmail.trim() || !newSpecPassword.trim()}
+                style={{ height: 46, background: creating || !newSpecEmail.trim() || !newSpecPassword.trim() ? S2 : A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: creating ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {creating ? 'Создание…' : 'Создать специалиста'}
+              </button>
+            </div>
+          </div>
+
+          {/* Existing specialists */}
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${BD}` }}>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Email</th>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Имя</th>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Создан</th>
+                  <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.filter(u => u.role === 'specialist').map(u => (
+                  <tr key={u.id} style={{ borderBottom: `1px solid ${S2}` }}>
+                    <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500 }}>{u.email}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13 }}>{u.name || '—'}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13, color: M }}>{formatDate(u.created_at)}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13 }}>
+                      <select value={u.role} onChange={(e) => changeRole(u.id, e.target.value)}
+                        style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: `1px solid ${BD}`, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}>
+                        <option value="specialist">Специалист L1</option>
+                        <option value="user">Снять роль</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {users.filter(u => u.role === 'specialist').length === 0 && <div style={{ padding: 20, textAlign: 'center', color: M }}>Специалистов пока нет</div>}
+          </div>
         </div>
       )}
 

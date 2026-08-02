@@ -111,7 +111,12 @@ function requireAdmin(user) {
 }
 
 async function getRequestForUser(env, id, userId) {
-  return env.DB.prepare('SELECT * FROM requests WHERE id = ? AND user_id = ?').bind(id, userId).first()
+  return env.DB.prepare(`
+    SELECT r.*, s.name AS specialist_name, s.email AS specialist_email
+    FROM requests r
+    LEFT JOIN users s ON r.assigned_to = s.id
+    WHERE r.id = ? AND r.user_id = ?
+  `).bind(id, userId).first()
 }
 
 async function getAnyRequest(env, id) {
@@ -240,9 +245,13 @@ async function handleLogin(request, env) {
 
 async function handleRequestsList(request, env) {
   const user = await authenticate(request, env)
-  const result = await env.DB.prepare(
-    'SELECT * FROM requests WHERE user_id = ? ORDER BY created_at DESC, id DESC',
-  ).bind(user.id).all()
+  const result = await env.DB.prepare(`
+    SELECT r.*, s.name AS specialist_name
+    FROM requests r
+    LEFT JOIN users s ON r.assigned_to = s.id
+    WHERE r.user_id = ?
+    ORDER BY r.created_at DESC, r.id DESC
+  `).bind(user.id).all()
   return json({ requests: result.results || [] })
 }
 

@@ -11,6 +11,16 @@ function formatMessageText(text) {
   ))
 }
 
+const STATUS_LABELS = {
+  'open': 'Открыто',
+  'waiting': 'Ожидает специалиста',
+  'in_progress': 'Специалист работает',
+  'need_data': 'Нужны данные',
+  'result_ready': 'Результат готов',
+  'returned': 'Возвращено в работу',
+  'done': 'Решено',
+}
+
 export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate, onNavigate, showToast }) {
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -22,6 +32,9 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const assistantRequested = useRef(false)
   const showToastRef = useRef(showToast)
   showToastRef.current = showToast
+  const prevMsgCount = useRef(0)
+  const prevStatus = useRef('')
+  const prevAssignedTo = useRef(null)
   const activeRequest = requestState || request
 
   const A = '#E50071'
@@ -32,34 +45,87 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const loadMessages = useCallback(async () => {
     try {
       const data = await requestsApi.get(request.id)
-      setMessages(data.messages || [])
-      setRequestState(data.request)
-      const hasAnswer = data.messages?.some(m => m.sender === 'assistant')
-      const shouldRequestAnswer = !hasAnswer && data.request?.status === 'open' && data.request?.level === 'l0'
-      if (shouldRequestAnswer && !assistantRequested.current) {
+      const newMessages = data.messages || []
+      const newRequest = data.request
+      const newMsgCount = newMessages.length
+      const newStatus = newRequest?.status || ''
+      const newAssignedTo = newRequest?.assigned_to || null
+
+      if (prevMsgCount.current > 0 && newMsgCount > prevMsgCount.current) {
+        const lastMsg = newMessages[newMessages.length - 1]
+        if (lastMsg.sender === 'specialist' && !lastMsg.is_internal) {
+          showToastRef.current(`Специалист: ${lastMsg.text.slice(0, 60)}${lastMsg.text.length > 60 ? '…' : ''}`)
+        } else if (lastMsg.sender === 'system') {
+          if (lastMsg.text.includes('принял обращение')) {
+            showToastRef.current('Специалист принял обращение в работу')
+          } else if (lastMsg.text.includes('Назначен специалист')) {
+            showToastRef.current('Специалист назначен на обращение')
+          } else if (lastMsg.text.includes('Ожидается подтверждение')) {
+            showToastRef.current('Специалист передал результат. Проверьте решение.')
+          } else if (lastMsg.text.includes('вернулось в работу')) {
+            showToastRef.current('Обращение вернулось в работу')
+          } else if (lastMsg.text.includes('дополнительные данные')) {
+            showToastRef.current('Специалист запросил дополнительные данные')
+          }
+        }
+      }
+
+      if (prevStatus.current && prevStatus.current !== newStatus) {
+        if (newStatus === 'in_progress' && prevStatus.current === 'waiting') {
+          showToastRef.current('Специалист подключился')
+        } else if (newStatus === 'need_data') {
+          showToastRef.current('Нужны дополнительные данные')
+        } else if (newStatus === 'result_ready') {
+          showToastRef.current('Результат готов — проверьте решение')
+        } else if (newStatus === 'returned') {
+          showToastRef.current('Обращение возвращено в работу')
+        } else if (newStatus === 'done') {
+          showToastRef.current('Вопрос решён')
+        }
+      }
+
+      prevMsgCount.current = newMsgCount
+      prevStatus.current = newStatus
+      prevAssignedTo.current = newAssignedTo
+
+      setMessages(newMessages)
+      setRequestState(newRequest)
+
+      const hasAnswer = newMessages.some(m => m.sender === 'assistant')
+      const isL0Open = newRequest?.status === 'open' && newRequest?.level === 'l0'
+      const isL1Active = newRequest?.level === 'l1' && newRequest?.status !== 'done'
+      const isDone = newRequest?.status === 'done'
+
+      if (isL0Open && !hasAnswer && !assistantRequested.current) {
         assistantRequested.current = true
         setWaitingAssistant(true)
         try {
           const answer = await requestsApi.requestAssistant(request.id)
-          setMessages(answer.message ? [...(data.messages || []), answer.message] : (data.messages || []))
-          setRequestState(answer.request || data.request)
-          setPolling(false)
+          if (answer.message) {
+            setMessages(prev => [...prev, answer.message])
+          }
+          if (answer.request) setRequestState(answer.request)
         } catch (error) {
           console.error('Assistant request error:', error)
-          setPolling(false)
           showToastRef.current('Ассистент не ответил. Можно повторить запрос или подключить специалиста.')
         } finally {
           setWaitingAssistant(false)
         }
-      } else if (hasAnswer || data.request?.status !== 'open' || data.request?.level !== 'l0') {
+      }
+
+      if (isDone) {
         setPolling(false)
+      } else if (isL0Open && hasAnswer && !waitingAssistant) {
+        setPolling(false)
+      } else if (isL1Active) {
+        setPolling(true)
       }
     } catch (e) {
       console.error('Load messages error:', e)
     } finally {
       setLoading(false)
     }
-  }, [request.id])
+  }, [request.id, waitingAssistant])
 
   useEffect(() => {
     setLoading(true)
@@ -68,12 +134,15 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     setRequestState(request)
     setWaitingAssistant(false)
     assistantRequested.current = false
+    prevMsgCount.current = 0
+    prevStatus.current = ''
+    prevAssignedTo.current = null
     loadMessages()
   }, [request, loadMessages])
 
   useEffect(() => {
     if (!polling) return
-    const interval = setInterval(loadMessages, 2000)
+    const interval = setInterval(loadMessages, 3000)
     return () => clearInterval(interval)
   }, [polling, loadMessages])
 
@@ -96,6 +165,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     } finally {
       setSending(false)
       setWaitingAssistant(false)
+      if (activeRequest.level === 'l1') setPolling(true)
     }
   }
 
@@ -109,9 +179,13 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     await onEvaluate(activeRequest.id, helped)
     if (helped) {
       setMessages(prev => [...prev, { sender: 'system', text: 'Вопрос решён' }])
-    } else {
+    } else if (activeRequest.level === 'l0') {
       setMessages(prev => [...prev, { sender: 'system', text: 'Подключаем специалиста. Повторно описывать не нужно.' }])
+    } else {
+      setMessages(prev => [...prev, { sender: 'system', text: 'Обращение возвращено в работу.' }])
     }
+    setPolling(true)
+    loadMessages()
   }
 
   const isL0 = activeRequest.level === 'l0' && activeRequest.status !== 'done'
@@ -121,17 +195,8 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const hasAssistantReply = assistantMessages.length > 0
   const isResultReady = activeRequest.status === 'result_ready'
   const showL1Buttons = isL0 && hasAssistantReply && !isDone
-  const showComposer = !isDone && !waitingAssistant && ((isL0 && hasAssistantReply) || (isL1 && activeRequest.status !== 'result_ready'))
-
-  const STATUS_LABELS = {
-    'open': 'Открыто',
-    'waiting': 'Ожидает специалиста',
-    'in_progress': 'Специалист работает',
-    'need_data': 'Нужны данные',
-    'result_ready': 'Результат готов',
-    'returned': 'Возвращено в работу',
-    'done': 'Решено',
-  }
+  const showL1Confirm = isResultReady && !isDone
+  const showComposer = !isDone && !waitingAssistant && ((isL0 && hasAssistantReply) || (isL1 && !isResultReady))
 
   const badgeText = isDone ? 'Решено' : isL0 ? 'Ищем решение' : (STATUS_LABELS[activeRequest.status] || 'В работе')
   const badgeColor = isDone ? M : isL0 ? A : (['waiting', 'need_data', 'returned'].includes(activeRequest.status) ? A : INK)
@@ -156,8 +221,11 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Канал</div>
             <div style={{ fontSize: 14, color: INK }}>{isL0 ? 'Ассистент ПРОСТО' : 'Специалист'}</div>
-            {isL1 && activeRequest.assigned_to && (
-              <div style={{ fontSize: 12, color: M, marginTop: 2 }}>{STATUS_LABELS[activeRequest.status] || ''}</div>
+            {isL1 && activeRequest.specialist_name && (
+              <div style={{ fontSize: 13, color: INK, fontWeight: 500, marginTop: 2 }}>{activeRequest.specialist_name}</div>
+            )}
+            {isL1 && !activeRequest.specialist_name && activeRequest.status === 'waiting' && (
+              <div style={{ fontSize: 12, color: M, marginTop: 2 }}>Ожидаем подключения…</div>
             )}
           </div>
           <div style={{ marginBottom: 18 }}>
@@ -178,7 +246,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <div style={{ padding: '16px 22px', borderBottom: `1px solid ${BD}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: INK, margin: 0 }}>{activeRequest.title}</h3>
-            <div style={{ fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>{isL0 ? 'Ассистент' : 'Специалист'}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>{isL0 ? 'Ассистент' : (activeRequest.specialist_name || 'Специалист')}</div>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: 22, display: 'flex', flexDirection: 'column', gap: 12, background: BG }}>
@@ -190,7 +258,6 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
               </div>
             ) : (
               <>
-                {/* Messages */}
                 {messages.map((msg, i) => (
                   <div key={i} style={{
                     maxWidth: 480, padding: '14px 18px',
@@ -207,6 +274,11 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                         Ассистент ПРОСТО
                       </div>
                     )}
+                    {msg.sender === 'specialist' && (
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: '#16A34A', marginBottom: 6 }}>
+                        {activeRequest.specialist_name || 'Специалист'}
+                      </div>
+                    )}
                     {msg.sender === 'user' && (
                       <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: L, marginBottom: 6, textAlign: 'right' }}>
                         Вы
@@ -216,7 +288,6 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                   </div>
                 ))}
 
-                {/* Loading — waiting for assistant */}
                 {waitingAssistant && !loading && (
                   <div style={{ textAlign: 'center', padding: 20, color: M, fontSize: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -239,7 +310,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                   </div>
                 )}
 
-                {/* L0 evaluation buttons — Помогло / Подключить специалиста */}
+                {/* L0 evaluation buttons */}
                 {showL1Buttons && (
                   <div style={{ marginTop: 8, padding: '12px 16px', background: S2, borderRadius: 10, alignSelf: 'center', maxWidth: 420 }}>
                     <div style={{ fontSize: 13, color: M, marginBottom: 10, textAlign: 'center' }}>Помогло решение?</div>
@@ -260,8 +331,8 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                   </div>
                 )}
 
-                {/* L1 result confirmation — Решено / Не помогло */}
-                {isResultReady && !isDone && (
+                {/* L1 result confirmation */}
+                {showL1Confirm && (
                   <div style={{ marginTop: 8, padding: '12px 16px', background: '#F0FDF4', borderRadius: 10, alignSelf: 'center', maxWidth: 420, border: '1px solid #BBF7D0' }}>
                     <div style={{ fontSize: 13, color: M, marginBottom: 10, textAlign: 'center' }}>Специалист передал результат. Помогло?</div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -281,7 +352,6 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                   </div>
                 )}
 
-                {/* Done */}
                 {isDone && (
                   <div style={{ textAlign: 'center', padding: '12px 20px', background: S2, borderRadius: 14, alignSelf: 'center', fontSize: 14, color: M, animation: 'fadeIn .4s ease' }}>
                     Вопрос решён
@@ -291,7 +361,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
             )}
           </div>
 
-          {/* COMPOSER — visible whenever L0, has reply, not done, not waiting */}
+          {/* COMPOSER */}
           {showComposer && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 22px', borderTop: `1px solid ${BD}`, background: S }}>
               <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}

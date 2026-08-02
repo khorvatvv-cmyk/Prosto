@@ -25,6 +25,7 @@ db.run(`
     inn TEXT,
     name TEXT,
     organization TEXT,
+    role TEXT DEFAULT 'user',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS requests (
@@ -34,7 +35,6 @@ db.run(`
     description TEXT,
     status TEXT DEFAULT 'open',
     level TEXT DEFAULT 'l0',
-    assistant_thread_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS messages (
@@ -46,15 +46,28 @@ db.run(`
   );
 `)
 
+// Migration: add role column if missing
+try { db.run('ALTER TABLE users ADD COLUMN role TEXT DEFAULT \'user\'') } catch(e) {}
+
 function save() {
   fs.writeFileSync(dbPath, Buffer.from(db.export()))
 }
 
-const requestColumns = db.exec('PRAGMA table_info(requests)')
-const requestColumnNames = requestColumns[0]?.values?.map(row => row[1]) || []
-if (!requestColumnNames.includes('assistant_thread_id')) {
-  db.run('ALTER TABLE requests ADD COLUMN assistant_thread_id TEXT')
+// === ADMIN BOOTSTRAP ===
+const adminEmail = process.env.ADMIN_EMAIL || 'admin@prosto.ru'
+const adminPass = process.env.ADMIN_PASSWORD || 'admin123456'
+const existingAdmin = queryOne('SELECT id FROM users WHERE email = ?', [adminEmail])
+if (!existingAdmin) {
+  const hash = bcrypt.hashSync(adminPass, 10)
+  db.run('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', [adminEmail, hash, 'Администратор', 'admin'])
   save()
+  console.log(`Admin created: ${adminEmail} / ${adminPass}`)
+} else {
+  // Ensure admin has role
+  if (existingAdmin.role !== 'admin') {
+    db.run('UPDATE users SET role = \'admin\' WHERE email = ?', [adminEmail])
+    save()
+  }
 }
 
 function queryOne(sql, params = []) {
@@ -75,24 +88,14 @@ function queryAll(sql, params = []) {
   return rows
 }
 
-function execute(sql, params = []) {
-  const stmt = db.prepare(sql)
-  stmt.bind(params)
-  stmt.step()
-  stmt.free()
-  save()
-}
-
 function executeAndGetId(sql, params = []) {
   const stmt = db.prepare(sql)
   stmt.bind(params)
   stmt.step()
   stmt.free()
   save()
-  // Получаем последний вставленный ID
   const row = queryOne('SELECT last_insert_rowid() as id')
   let id = row?.id
-  // Если last_insert_rowid вернул 0, ищем через MAX
   if (!id || id === 0) {
     const tableMatch = sql.match(/INSERT\s+INTO\s+(\w+)/i)
     if (tableMatch) {
@@ -103,6 +106,7 @@ function executeAndGetId(sql, params = []) {
   return id || 1
 }
 
+// === USER FUNCTIONS ===
 export function createUser({ email, password, inn, name }) {
   const hash = bcrypt.hashSync(password, 10)
   const id = executeAndGetId('INSERT INTO users (email, password, inn, name) VALUES (?, ?, ?, ?)', [email, hash, inn, name])
@@ -114,9 +118,10 @@ export function findUserByEmail(email) {
 }
 
 export function findUserById(id) {
-  return queryOne('SELECT id, email, inn, name, organization, created_at FROM users WHERE id = ?', [id])
+  return queryOne('SELECT id, email, inn, name, organization, role, created_at FROM users WHERE id = ?', [id])
 }
 
+// === REQUEST FUNCTIONS ===
 export function createRequest({ userId, title, description }) {
   const id = executeAndGetId('INSERT INTO requests (user_id, title, description) VALUES (?, ?, ?)', [userId, title, description])
   return { id, userId, title, description, status: 'open', level: 'l0' }
@@ -132,10 +137,11 @@ export function getRequestById(id, userId) {
 
 export function updateRequest(id, updates) {
   for (const [k, v] of Object.entries(updates)) {
-    if (['status', 'level', 'title', 'description', 'assistant_thread_id'].includes(k)) {
-      execute(`UPDATE requests SET ${k} = ? WHERE id = ?`, [v, id])
+    if (['status', 'level', 'title', 'description'].includes(k)) {
+      db.run(`UPDATE requests SET ${k} = ? WHERE id = ?`, [v, id])
     }
   }
+  save()
   return queryOne('SELECT * FROM requests WHERE id = ?', [id])
 }
 
@@ -148,3 +154,52 @@ export function getMessagesByRequestId(requestId) {
   return queryAll('SELECT * FROM messages WHERE request_id = ? ORDER BY created_at ASC', [requestId])
 }
 
+// === ADMIN FUNCTIONS ===
+export function getAllUsers() {
+  return queryAll('SELECT id, email, inn, name, organization, role, created_at FROM users ORDER BY created_at DESC')
+}
+
+export function getAllRequests() {
+  return queryAll(`
+    SELECT r.*, u.email, u.name as user_name, u.inn,
+      (SELECT COUNT(*) FROM messages WHERE request_id = r.id) as msg_count
+    FROM requests r
+    LEFT JOIN users u ON r.user_id = u.id
+    ORDER BY r.created_at DESC
+  `)
+}
+
+export function getOrganizations() {
+  const users = queryAll('SELECT id, email, inn, name, organization, created_at FROM users WHERE role = \'user\' ORDER BY inn')
+  const orgs = {}
+  for (const u of users) {
+    const inn = u.inn || 'без ИНН'
+    if (!orgs[inn]) {
+      orgs[inn] = { inn, users: [], requestCount: 0 }
+    }
+    orgs[inn].users.push(u)
+    const reqs = queryAll('SELECT id, title, status, created_at FROM requests WHERE user_id = ? ORDER BY created_at DESC', [u.id])
+    orgs[inn].requestCount += reqs.length
+    if (reqs.length > 0) orgs[inn].lastRequest = reqs[0].created_at
+    orgs[inn].requests = orgs[inn].requests || []
+    orgs[inn].requests.push(...reqs)
+  }
+  return Object.values(orgs)
+}
+
+export function getStats() {
+  const users = queryOne('SELECT COUNT(*) as count FROM users')
+  const requests = queryOne('SELECT COUNT(*) as count FROM requests')
+  const messages = queryOne('SELECT COUNT(*) as count FROM messages')
+  const openReqs = queryOne('SELECT COUNT(*) as count FROM requests WHERE status = \'open\' OR status = \'waiting\'')
+  const doneReqs = queryOne('SELECT COUNT(*) as count FROM requests WHERE status = \'done\'')
+  const orgs = queryOne('SELECT COUNT(DISTINCT inn) as count FROM users WHERE inn IS NOT NULL AND inn != \'\'')
+  return {
+    users: users?.count || 0,
+    requests: requests?.count || 0,
+    messages: messages?.count || 0,
+    openRequests: openReqs?.count || 0,
+    doneRequests: doneReqs?.count || 0,
+    organizations: orgs?.count || 0,
+  }
+}

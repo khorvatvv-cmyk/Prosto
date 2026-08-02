@@ -11,6 +11,7 @@ export default function Header({ onNavigate, onOpenManager, page, user }) {
     { id: 'new', label: 'Задать вопрос' },
     { id: 'important', label: 'Важное' },
     { id: 'notifs', label: 'Уведомления' },
+    ...(user?.role === 'admin' ? [{ id: 'admin', label: 'Админка' }] : []),
   ]
 
   const initials = user?.name ? user.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : user?.email?.[0]?.toUpperCase() || '?'

@@ -1,56 +1,94 @@
 const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
 
+export class ApiError extends Error {
+  constructor(message, { status = 0, code = 'request_failed' } = {}) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
 function getToken() {
   return localStorage.getItem('prosto_token')
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, config = {}) {
   const token = getToken()
+  const method = String(options.method || 'GET').toUpperCase()
+  const maxAttempts = config.maxAttempts ?? (method === 'GET' ? 2 : 1)
+  const timeoutMs = config.timeoutMs ?? 12000
+  const onProgress = typeof config.onProgress === 'function' ? config.onProgress : () => {}
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   }
 
-  // Retry до 3 раз — Render free tier может просыпаться
   let lastError = null
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController()
+    let timeout = null
     try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), attempt === 1 ? 30000 : 15000)
+      onProgress({ phase: 'request', attempt, maxAttempts })
+      timeout = setTimeout(() => controller.abort(), timeoutMs)
 
       const res = await fetch(`${API_URL}${path}`, {
         ...options,
         headers,
         signal: controller.signal,
+        cache: 'no-store',
       })
 
-      clearTimeout(timeout)
-
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `Ошибка ${res.status}`)
+      if (!res.ok) {
+        throw new ApiError(data.error || `Ошибка ${res.status}`, {
+          status: res.status,
+          code: 'http_error',
+        })
+      }
+      onProgress({ phase: 'success', attempt, maxAttempts })
       return data
     } catch (err) {
-      lastError = err
-      if (err.name === 'AbortError' || err.message === 'Failed to fetch') {
-        // Render просыпается — ждём и повторяем
-        if (attempt < 3) {
-          await new Promise(r => setTimeout(r, 2000 * attempt))
-          continue
-        }
+      const isTimeout = err.name === 'AbortError'
+      const isNetworkError = isTimeout || err.message === 'Failed to fetch'
+      lastError = isTimeout
+        ? new ApiError('Сервер не ответил вовремя', { code: 'timeout' })
+        : isNetworkError
+          ? new ApiError('Не удалось связаться с сервером', { code: 'network_error' })
+          : err
+
+      if (isNetworkError && attempt < maxAttempts) {
+        onProgress({ phase: 'retry', attempt, maxAttempts })
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        continue
       }
-      throw err
+      throw lastError
+    } finally {
+      if (timeout) clearTimeout(timeout)
     }
   }
   throw lastError || new Error('Сервер недоступен')
 }
 
 export const authApi = {
-  register: (email, password, inn, name) =>
-    api('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, inn, name }) }),
-  login: (email, password) =>
-    api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  me: () => api('/auth/me'),
+  register: (email, password, inn, name, onProgress) =>
+    api('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, inn, name }) }, {
+      maxAttempts: 1,
+      timeoutMs: 15000,
+      onProgress,
+    }),
+  login: (email, password, onProgress) =>
+    api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, {
+      maxAttempts: 2,
+      timeoutMs: 12000,
+      onProgress,
+    }),
+  me: () => api('/auth/me', {}, { maxAttempts: 1, timeoutMs: 8000 }),
+}
+
+export const systemApi = {
+  wake: () => api('/health', {}, { maxAttempts: 1, timeoutMs: 8000 }),
 }
 
 export const requestsApi = {

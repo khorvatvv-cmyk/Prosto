@@ -13,6 +13,7 @@ import Toast from './components/Toast.jsx'
 import Header from './components/Header.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import MobileTabbar from './components/MobileTabbar.jsx'
+import AdminPanel from './components/AdminPanel.jsx'
 
 export default function App() {
   const { user, loading, login, register, logout } = useAuth()
@@ -137,6 +138,9 @@ export default function App() {
             )}
             {page === 'notifs' && (
               <Notifications requests={requests} onOpenDetail={openDetail} />
+            )}
+            {page === 'admin' && user?.role === 'admin' && (
+              <AdminPanel user={user} />
             )}
           </div>
         </main>

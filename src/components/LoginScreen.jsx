@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { systemApi } from '../api.js'
 
 export default function LoginScreen({ onLogin, onRegister }) {
   const [tab, setTab] = useState('login')
@@ -8,26 +9,65 @@ export default function LoginScreen({ onLogin, onRegister }) {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [connectionText, setConnectionText] = useState('')
+  const [online, setOnline] = useState(() => navigator.onLine)
+
+  useEffect(() => {
+    let active = true
+    const handleOnline = () => setOnline(true)
+    const handleOffline = () => setOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    systemApi.wake()
+      .then(() => {
+        if (active) setConnectionText('')
+      })
+      .catch(() => {
+        if (active && navigator.onLine) setConnectionText('Сервер запускается — вход может занять несколько секунд')
+      })
+
+    return () => {
+      active = false
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  const handleProgress = ({ phase, attempt }) => {
+    if (phase === 'request') {
+      setConnectionText(attempt > 1 ? 'Повторно соединяемся с сервером…' : 'Проверяем данные…')
+    } else if (phase === 'retry') {
+      setConnectionText('Сервер отвечает медленно. Пробуем ещё раз…')
+    } else if (phase === 'success') {
+      setConnectionText('')
+    }
+  }
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.()
     setError('')
+    if (!navigator.onLine) {
+      setError('Нет подключения к интернету. Проверьте мобильную сеть или Wi-Fi.')
+      return
+    }
     setLoading(true)
     try {
       if (tab === 'login') {
-        await onLogin(email, password)
+        await onLogin(email, password, handleProgress)
       } else {
         if (!inn.trim()) throw new Error('Укажите ИНН организации')
-        await onRegister(email, password, inn, name)
+        await onRegister(email, password, inn, name, handleProgress)
       }
     } catch (err) {
-      if (err.message === 'Failed to fetch' || err.name === 'AbortError') {
-        setError('Сервер просыпается. Подождите 30 секунд и попробуйте снова.')
+      if (err.code === 'timeout' || err.code === 'network_error') {
+        setError('Не удалось связаться с сервером. Проверьте интернет и нажмите «Войти» ещё раз.')
       } else {
         setError(err.message || 'Ошибка')
       }
     } finally {
       setLoading(false)
+      setConnectionText('')
     }
   }
 
@@ -36,25 +76,25 @@ export default function LoginScreen({ onLogin, onRegister }) {
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+    <div className="login-shell" style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       {/* LEFT — FORM */}
-      <div style={{ width: '100%', maxWidth: 460, flexShrink: 0, background: S, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div className="login-panel" style={{ width: '100%', maxWidth: 460, flexShrink: 0, background: S, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         {/* Logo bar */}
-        <div style={{ padding: '24px 40px', borderBottom: `1px solid ${BD}` }}>
+        <div className="login-logo" style={{ padding: '24px 40px', borderBottom: `1px solid ${BD}` }}>
           <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.03em', color: INK }}>
             просто<span style={{ color: A }}>.</span>
           </span>
         </div>
 
         {/* Form area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 40px 60px' }}>
+        <div className="login-form-area" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 40px 60px' }}>
           {/* Tabs */}
           <div style={{ display: 'flex', borderBottom: `1px solid ${BD}`, marginBottom: 32 }}>
-            <button onClick={() => { setTab('login'); setError('') }}
+            <button type="button" onClick={() => { setTab('login'); setError('') }}
               style={{ fontSize: 14, fontWeight: 600, padding: '10px 0', marginRight: 28, cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', borderBottom: `2px solid ${tab==='login'?A:'transparent'}`, color: tab==='login'?INK:L, marginBottom: -1 }}>
               Вход
             </button>
-            <button onClick={() => { setTab('register'); setError('') }}
+            <button type="button" onClick={() => { setTab('register'); setError('') }}
               style={{ fontSize: 14, fontWeight: 600, padding: '10px 0', cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', borderBottom: `2px solid ${tab==='register'?A:'transparent'}`, color: tab==='register'?INK:L, marginBottom: -1 }}>
               Регистрация
             </button>
@@ -83,16 +123,16 @@ export default function LoginScreen({ onLogin, onRegister }) {
 
             <div style={{ marginBottom: 18 }}>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required
-                style={{ width: '100%', height: 46, border: `1px solid ${BD}`, background: S, fontSize: 15, fontFamily: 'inherit', outline: 'none', color: INK, padding: '0 14px', borderRadius: 8, transition: 'all .2s', boxSizing: 'border-box' }}
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email" inputMode="email" enterKeyHint="next" autoCapitalize="none"
+                style={{ width: '100%', height: 46, border: `1px solid ${BD}`, background: S, fontSize: 16, fontFamily: 'inherit', outline: 'none', color: INK, padding: '0 14px', borderRadius: 8, transition: 'all .2s', boxSizing: 'border-box' }}
                 onFocus={e => { e.target.style.borderColor = A; e.target.style.boxShadow = '0 0 0 4px rgba(229,0,113,.1)' }}
                 onBlur={e => { e.target.style.borderColor = BD; e.target.style.boxShadow = 'none' }} />
             </div>
 
             <div style={{ marginBottom: 18 }}>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Пароль</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required
-                style={{ width: '100%', height: 46, border: `1px solid ${BD}`, background: S, fontSize: 15, fontFamily: 'inherit', outline: 'none', color: INK, padding: '0 14px', borderRadius: 8, transition: 'all .2s', boxSizing: 'border-box' }}
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required autoComplete={tab === 'login' ? 'current-password' : 'new-password'} enterKeyHint="go"
+                style={{ width: '100%', height: 46, border: `1px solid ${BD}`, background: S, fontSize: 16, fontFamily: 'inherit', outline: 'none', color: INK, padding: '0 14px', borderRadius: 8, transition: 'all .2s', boxSizing: 'border-box' }}
                 onFocus={e => { e.target.style.borderColor = A; e.target.style.boxShadow = '0 0 0 4px rgba(229,0,113,.1)' }}
                 onBlur={e => { e.target.style.borderColor = BD; e.target.style.boxShadow = 'none' }} />
             </div>
@@ -114,9 +154,15 @@ export default function LoginScreen({ onLogin, onRegister }) {
               </div>
             )}
 
+            {!error && (!online || connectionText) && (
+              <div role="status" style={{ fontSize: 13, color: online ? M : A, marginBottom: 14, lineHeight: 1.5 }}>
+                {online ? connectionText : 'Нет подключения к интернету'}
+              </div>
+            )}
+
             <button type="submit" disabled={loading}
               style={{ width: '100%', height: 50, background: loading ? S2 : A, color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all .2s', boxShadow: loading ? 'none' : '0 2px 8px rgba(229,0,113,.2)' }}>
-              {loading ? 'Подождите…' : (tab === 'login' ? 'Войти' : 'Создать аккаунт')}
+              {loading ? (connectionText || 'Входим…') : (tab === 'login' ? 'Войти' : 'Создать аккаунт')}
             </button>
           </form>
 
@@ -126,7 +172,7 @@ export default function LoginScreen({ onLogin, onRegister }) {
             <div style={{ flex: 1, height: 1, background: BD }} />
           </div>
 
-          <button onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); setError('') }}
+          <button type="button" onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); setError('') }}
             style={{ width: '100%', height: 46, background: S, color: INK, border: '1px solid #D4D4D8', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
             {tab === 'register' ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
           </button>

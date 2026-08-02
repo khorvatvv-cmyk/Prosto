@@ -11,21 +11,39 @@ export function useAuth() {
       setLoading(false)
       return
     }
+
+    let active = true
+    const loadingGuard = setTimeout(() => {
+      if (active) setLoading(false)
+    }, 8500)
+
     authApi.me()
-      .then(data => setUser(data.user))
-      .catch(() => localStorage.removeItem('prosto_token'))
-      .finally(() => setLoading(false))
+      .then(data => {
+        if (active) setUser(data.user)
+      })
+      .catch(error => {
+        if (error.status === 401) localStorage.removeItem('prosto_token')
+      })
+      .finally(() => {
+        clearTimeout(loadingGuard)
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+      clearTimeout(loadingGuard)
+    }
   }, [])
 
-  const login = useCallback(async (email, password) => {
-    const data = await authApi.login(email, password)
+  const login = useCallback(async (email, password, onProgress) => {
+    const data = await authApi.login(email.trim(), password, onProgress)
     localStorage.setItem('prosto_token', data.token)
     setUser(data.user)
     return data.user
   }, [])
 
-  const register = useCallback(async (email, password, inn, name) => {
-    const data = await authApi.register(email, password, inn, name)
+  const register = useCallback(async (email, password, inn, name, onProgress) => {
+    const data = await authApi.register(email.trim(), password, inn, name, onProgress)
     localStorage.setItem('prosto_token', data.token)
     setUser(data.user)
     return data.user

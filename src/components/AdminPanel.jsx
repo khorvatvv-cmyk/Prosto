@@ -29,6 +29,8 @@ export default function AdminPanel() {
   const [creatingRof, setCreatingRof] = useState(false)
   const [createRofError, setCreateRofError] = useState('')
   const [roleNotice, setRoleNotice] = useState('')
+  const [promoteRofUserId, setPromoteRofUserId] = useState('')
+  const [promotingRof, setPromotingRof] = useState(false)
 
   const A = '#E50071', INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
@@ -162,6 +164,22 @@ export default function AdminPanel() {
     const minutes = Math.floor(seconds / 60)
     const hours = Math.floor(minutes / 60)
     return hours > 0 ? `${hours} ч ${minutes % 60} мин` : `${minutes} мин`
+  }
+
+  async function promoteToRof() {
+    if (!promoteRofUserId) return
+    setPromotingRof(true)
+    setRoleNotice('')
+    try {
+      await adminApi.setUserRole(Number(promoteRofUserId), 'rof')
+      setPromoteRofUserId('')
+      await load()
+      setRoleNotice('Пользователю назначена роль РОФ')
+    } catch (e) {
+      setRoleNotice('Ошибка: ' + (e.message || 'не удалось назначить РОФ'))
+    } finally {
+      setPromotingRof(false)
+    }
   }
 
   return (
@@ -425,9 +443,27 @@ export default function AdminPanel() {
       {/* === ROF === */}
       {tab === 'rofs' && (
         <div>
+          <div style={{ background: '#FFF0F7', border: `1px solid ${A}22`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 620 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Назначить существующего пользователя РОФ</h3>
+            <p style={{ fontSize: 13, color: M, marginBottom: 14 }}>Выберите уже зарегистрированного пользователя. После следующего входа ему откроется только АРМ РОФ.</p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <select value={promoteRofUserId} onChange={e => setPromoteRofUserId(e.target.value)}
+                style={{ minWidth: 280, flex: 1, height: 40, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 10px', background: S, fontSize: 13, fontFamily: 'inherit' }}>
+                <option value="">Выберите пользователя</option>
+                {users.filter(u => !['admin', 'rof'].includes(u.role)).map(u => (
+                  <option key={u.id} value={u.id}>{u.name || u.email} — {u.email} ({u.role === 'user' ? 'клиент' : u.role})</option>
+                ))}
+              </select>
+              <button onClick={promoteToRof} disabled={promotingRof || !promoteRofUserId}
+                style={{ height: 40, padding: '0 16px', background: promoteRofUserId ? INK : S2, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: promoteRofUserId ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                {promotingRof ? 'Назначение…' : 'Сделать РОФ'}
+              </button>
+            </div>
+            {roleNotice && <div style={{ marginTop: 10, fontSize: 13, color: roleNotice.startsWith('Ошибка') ? A : '#16A34A' }}>{roleNotice}</div>}
+          </div>
           <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 500 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Добавить РОФ</h3>
-            <p style={{ fontSize: 13, color: M, marginBottom: 16 }}>РОФ видит всех клиентов, менеджеров и состояние очереди L1.</p>
+            <p style={{ fontSize: 13, color: M, marginBottom: 16 }}>Либо создайте новую отдельную учётную запись. РОФ увидит всех клиентов, менеджеров и состояние очереди L1.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <input type="text" value={newRofName} onChange={e => setNewRofName(e.target.value)} placeholder="Имя РОФ"
                 style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}

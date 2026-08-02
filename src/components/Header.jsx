@@ -1,4 +1,4 @@
-export default function Header({ onNavigate, page, user }) {
+export default function Header({ onNavigate, page, user, notificationSummary = {} }) {
   const ACCENT = 'var(--color-accent)'
   const INK = 'var(--color-ink)'
   const INK_MUTED = 'var(--color-ink-muted)'
@@ -9,8 +9,8 @@ export default function Header({ onNavigate, page, user }) {
   const clientItems = [
     { id: 'dashboard', label: 'Вопросы' },
     { id: 'new', label: 'Задать вопрос' },
-    { id: 'important', label: 'Важное' },
-    { id: 'notifs', label: 'Уведомления' },
+    { id: 'important', label: 'Важное', badge: notificationSummary.campaigns || 0 },
+    { id: 'notifs', label: 'Уведомления', badge: notificationSummary.messages || 0 },
   ]
   const role = user?.role || 'user'
   const roleItems = {
@@ -50,7 +50,10 @@ export default function Header({ onNavigate, page, user }) {
             }}
             onMouseEnter={e => { if (page !== item.id) { e.target.style.color = INK; e.target.style.background = SURFACE_2 } }}
             onMouseLeave={e => { if (page !== item.id) { e.target.style.color = INK_MUTED; e.target.style.background = 'transparent' } }}>
-            {item.label}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {item.label}
+              {item.badge > 0 && <span style={{ minWidth: 18, height: 18, padding: '0 5px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, background: ACCENT, color: '#fff', fontSize: 10, fontWeight: 700 }}>{item.badge}</span>}
+            </span>
           </a>
         ))}
       </nav>

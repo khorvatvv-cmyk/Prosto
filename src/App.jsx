@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from './useAuth.js'
-import { requestsApi } from './api.js'
+import { notificationsApi, requestsApi } from './api.js'
 import LoginScreen from './components/LoginScreen.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import NewRequest from './components/NewRequest.jsx'
@@ -56,13 +56,43 @@ export default function App() {
   const [managerOpen, setManagerOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [notificationSummary, setNotificationSummary] = useState({ messages: 0, campaigns: 0, total: 0 })
+  const previousNotifications = useRef(null)
   const userId = user?.id
   const userRole = user?.role
 
-  const showToast = (msg) => {
+  const showToast = useCallback((msg) => {
     setToast(msg)
     setTimeout(() => setToast(null), 2500)
-  }
+  }, [])
+
+  const applyNotificationSummary = useCallback((data, announce = false) => {
+    const next = {
+      messages: Number(data?.unread_messages || 0),
+      campaigns: Number(data?.unread_campaigns || 0),
+      total: Number(data?.unread_count || 0),
+    }
+    const previous = previousNotifications.current
+    if (announce && previous && next.messages > previous.messages) showToast('Новое сообщение от менеджера')
+    if (announce && previous && next.campaigns > previous.campaigns) showToast('В разделе «Важное» появилась новая акция')
+    previousNotifications.current = next
+    setNotificationSummary(next)
+  }, [showToast])
+
+  const loadNotificationSummary = useCallback(async (announce = false) => {
+    if (userRole !== 'user') return
+    try {
+      const data = await notificationsApi.list()
+      applyNotificationSummary(data, announce)
+    } catch (error) {
+      console.error('Notification summary error:', error)
+    }
+  }, [userRole, applyNotificationSummary])
+
+  const handleNotificationRefresh = useCallback((data) => {
+    if (data) applyNotificationSummary(data)
+    else loadNotificationSummary(false)
+  }, [applyNotificationSummary, loadNotificationSummary])
 
   const loadRequests = useCallback(async () => {
     try {
@@ -81,6 +111,17 @@ export default function App() {
     if (!userRole) return
     setPage(homePageForRole(userRole))
   }, [userRole])
+
+  useEffect(() => {
+    if (userRole !== 'user') {
+      previousNotifications.current = null
+      setNotificationSummary({ messages: 0, campaigns: 0, total: 0 })
+      return
+    }
+    loadNotificationSummary(false)
+    const timer = setInterval(() => loadNotificationSummary(true), 10000)
+    return () => clearInterval(timer)
+  }, [userRole, loadNotificationSummary])
 
   const goTo = (p) => {
     const allowedPages = ALLOWED_PAGES_BY_ROLE[userRole] || ALLOWED_PAGES_BY_ROLE.user
@@ -153,7 +194,7 @@ export default function App() {
   if (isStaff) {
     return (
       <div className="h-screen flex flex-col bg-[var(--color-bg)]">
-        <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} />
+        <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} notificationSummary={notificationSummary} />
         <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-8 pb-20" style={{ scrollBehavior: 'smooth' }}>
           <div className="max-w-[1200px] mx-auto">
             {page === 'specialist' && (user.role === 'specialist' || user.role === 'admin') && (
@@ -173,7 +214,7 @@ export default function App() {
             )}
           </div>
         </main>
-        <MobileTabbar onNavigate={goTo} page={page} user={user} />
+        <MobileTabbar onNavigate={goTo} page={page} user={user} notificationSummary={notificationSummary} />
         {toast && <Toast message={toast} />}
       </div>
     )
@@ -181,9 +222,9 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-[var(--color-bg)]">
-      <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} />
+      <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} notificationSummary={notificationSummary} />
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} onLogout={logout} user={user} />
+        <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} onLogout={logout} user={user} notificationSummary={notificationSummary} />
         <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-8 pb-20" style={{ scrollBehavior: 'smooth' }}>
           <div className="max-w-[1060px] mx-auto">
             {page === 'dashboard' && (
@@ -219,7 +260,7 @@ export default function App() {
               <Profile user={user} onOpenManager={() => goTo('manager-chat')} onLogout={logout} onUpdateUser={setUser} />
             )}
             {page === 'notifs' && (
-              <Notifications requests={requests} onOpenDetail={openDetail} />
+              <Notifications requests={requests} onOpenDetail={openDetail} onNavigate={goTo} onRefresh={handleNotificationRefresh} />
             )}
             {page === 'admin' && user?.role === 'admin' && (
               <AdminPanel user={user} />
@@ -227,7 +268,7 @@ export default function App() {
           </div>
         </main>
       </div>
-      <MobileTabbar onNavigate={goTo} page={page} user={user} />
+      <MobileTabbar onNavigate={goTo} page={page} user={user} notificationSummary={notificationSummary} />
       {managerOpen && <ManagerModal onClose={() => setManagerOpen(false)} onSend={messageManager} />}
       {toast && <Toast message={toast} />}
     </div>

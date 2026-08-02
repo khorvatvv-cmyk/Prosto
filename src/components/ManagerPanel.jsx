@@ -101,12 +101,18 @@ const CAMPAIGN_ACTIONS = [
 ]
 
 const TARGET_STATUSES = [
-  { id: 'all', label: 'Все' },
+  { id: 'all', label: 'Без фильтра по договору' },
   { id: 'its_prof', label: '1С:ПРОФ' },
   { id: 'fresh_prof', label: '1С:ПРОФ (недавно)' },
   { id: 'other_regular', label: 'Другая ИТС' },
   { id: 'no_regular_contract', label: 'Нет договора' },
 ]
+
+const EMPTY_CAMPAIGN_FORM = {
+  title: '', subject: '', short_text: '', full_text: '', category: 'promo',
+  action_type: 'none', action_label: '', start_date: '', end_date: '',
+  target_status: 'all', target_mode: 'all_my', target_org_ids: [],
+}
 
 const formatDate = (d) => d ? new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
 
@@ -142,7 +148,9 @@ export default function ManagerPanel({ user, showToast }) {
   const [campaigns, setCampaigns] = useState([])
   const [campsLoading, setCampsLoading] = useState(false)
   const [showCreateCampaign, setShowCreateCampaign] = useState(false)
-  const [campaignForm, setCampaignForm] = useState({ title: '', subject: '', short_text: '', full_text: '', category: 'info', action_type: 'none', action_label: '', start_date: '', end_date: '', target_status: 'all' })
+  const [campaignForm, setCampaignForm] = useState(EMPTY_CAMPAIGN_FORM)
+  const [campaignClients, setCampaignClients] = useState([])
+  const [campaignClientsLoading, setCampaignClientsLoading] = useState(false)
   const [creatingCampaign, setCreatingCampaign] = useState(false)
   const [activatingId, setActivatingId] = useState(null)
   const [activationResult, setActivationResult] = useState({})
@@ -468,9 +476,37 @@ export default function ManagerPanel({ user, showToast }) {
     setCampaignForm(prev => ({ ...prev, [key]: value }))
   }
 
-  const handleCreateCampaign = async () => {
+  const openCampaignCreator = async () => {
+    setShowCreateCampaign(prev => !prev)
+    setDeliveriesFor(null)
+    if (showCreateCampaign || campaignClients.length) return
+    setCampaignClientsLoading(true)
+    try {
+      const data = await managerApi.clients('mine')
+      setCampaignClients(data.clients || [])
+    } catch (error) {
+      showToast('Не удалось загрузить клиентов: ' + error.message)
+    } finally {
+      setCampaignClientsLoading(false)
+    }
+  }
+
+  const toggleCampaignTarget = (orgId) => {
+    setCampaignForm(prev => ({
+      ...prev,
+      target_org_ids: prev.target_org_ids.includes(orgId)
+        ? prev.target_org_ids.filter(id => id !== orgId)
+        : [...prev.target_org_ids, orgId],
+    }))
+  }
+
+  const handleCreateCampaign = async (launch = false) => {
     if (!campaignForm.title.trim() || !campaignForm.full_text.trim()) {
       showToast('Заполните обязательные поля: название и полный текст')
+      return
+    }
+    if (campaignForm.target_mode === 'selected' && campaignForm.target_org_ids.length === 0) {
+      showToast('Выберите хотя бы одну организацию')
       return
     }
     setCreatingCampaign(true)
@@ -478,13 +514,18 @@ export default function ManagerPanel({ user, showToast }) {
       const data = { ...campaignForm }
       if (!data.start_date) delete data.start_date
       if (!data.end_date) delete data.end_date
-      await campaignApi.create(data)
+      const created = await campaignApi.create(data)
+      let delivered = null
+      if (launch) {
+        const result = await campaignApi.activate(created.id)
+        delivered = result.delivered
+      }
       setShowCreateCampaign(false)
-      setCampaignForm({ title: '', subject: '', short_text: '', full_text: '', category: 'info', action_type: 'none', action_label: '', start_date: '', end_date: '', target_status: 'all' })
+      setCampaignForm(EMPTY_CAMPAIGN_FORM)
       await loadCampaigns()
-      showToast('Кампания создана')
+      showToast(launch ? `Акция запущена. Получателей: ${delivered}` : 'Акция сохранена в черновиках')
     } catch (e) {
-      showToast(e.message || 'Не удалось создать кампанию')
+      showToast(e.message || 'Не удалось создать акцию')
     } finally {
       setCreatingCampaign(false)
     }
@@ -497,8 +538,9 @@ export default function ManagerPanel({ user, showToast }) {
       const data = await campaignApi.activate(id)
       setActivationResult(prev => ({ ...prev, [id]: data }))
       await loadCampaigns()
+      showToast(`Акция запущена. Получателей: ${data.delivered}`)
     } catch (e) {
-      showToast(e.message || 'Не удалось активировать кампанию')
+      showToast(e.message || 'Не удалось запустить акцию')
     } finally {
       setActivatingId(null)
     }
@@ -733,7 +775,7 @@ export default function ManagerPanel({ user, showToast }) {
           { id: 'clients', label: 'Клиенты' },
           { id: 'tasks', label: 'Задачи' },
           { id: 'chats', label: 'Чаты' },
-          { id: 'campaigns', label: 'Кампании' },
+          { id: 'campaigns', label: 'Акции и важное' },
         ].map(t => (
           <button key={t.id} onClick={() => goTo(t.id)}
             style={{ fontSize: 13, fontWeight: 500, padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: section === t.id ? INK : M, background: section === t.id ? S : 'transparent' }}>
@@ -1035,20 +1077,24 @@ export default function ManagerPanel({ user, showToast }) {
       {section === 'campaigns' && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: INK }}>Кампании</div>
-            <button onClick={() => { setShowCreateCampaign(!showCreateCampaign); setDeliveriesFor(null) }}
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: INK }}>Акции для клиентов</div>
+              <div style={{ fontSize: 12, color: M, marginTop: 3 }}>После запуска акция появится у получателей в разделе «Важное для вас».</div>
+            </div>
+            <button onClick={openCampaignCreator}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              <Megaphone size={14} /> Создать кампанию
+              <Megaphone size={14} /> Создать акцию
             </button>
           </div>
 
           {showCreateCampaign && (
             <div style={{ marginBottom: 20, padding: 20, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: INK, marginBottom: 16 }}>Новая кампания</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: INK, marginBottom: 4 }}>Новая акция</div>
+              <div style={{ fontSize: 13, color: M, marginBottom: 16 }}>Выберите всех своих клиентов или конкретные организации, затем запустите публикацию.</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Название *</div>
-                  <input type="text" value={campaignForm.title} onChange={e => handleCampaignField('title', e.target.value)} placeholder="Название кампании"
+                  <input type="text" value={campaignForm.title} onChange={e => handleCampaignField('title', e.target.value)} placeholder="Название акции"
                     style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                     onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
                 </div>
@@ -1081,10 +1127,18 @@ export default function ManagerPanel({ user, showToast }) {
                   </div>
                 )}
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Целевые клиенты</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Фильтр по договору</div>
                   <select value={campaignForm.target_status} onChange={e => handleCampaignField('target_status', e.target.value)}
                     style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 8px', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', boxSizing: 'border-box', background: S }}>
                     {TARGET_STATUSES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Кому отправить *</div>
+                  <select value={campaignForm.target_mode} onChange={e => handleCampaignField('target_mode', e.target.value)}
+                    style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 8px', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', boxSizing: 'border-box', background: S }}>
+                    <option value="all_my">Всем моим клиентам</option>
+                    <option value="selected">Выбранным организациям</option>
                   </select>
                 </div>
                 <div>
@@ -1100,6 +1154,28 @@ export default function ManagerPanel({ user, showToast }) {
                     onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
                 </div>
               </div>
+              {campaignForm.target_mode === 'selected' && (
+                <div style={{ marginTop: 12, padding: 12, border: `1px solid ${BD}`, borderRadius: 8, background: S2 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: INK, marginBottom: 8 }}>Организации-получатели</div>
+                  {campaignClientsLoading ? (
+                    <div style={{ fontSize: 13, color: M }}>Загрузка клиентов…</div>
+                  ) : campaignClients.length === 0 ? (
+                    <div style={{ fontSize: 13, color: M }}>У вас пока нет закреплённых клиентов.</div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 8 }}>
+                      {campaignClients.map(org => (
+                        <label key={org.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: 10, border: `1px solid ${campaignForm.target_org_ids.includes(org.id) ? A : BD}`, borderRadius: 8, background: S, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={campaignForm.target_org_ids.includes(org.id)} onChange={() => toggleCampaignTarget(org.id)} style={{ marginTop: 2, accentColor: A }} />
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: INK }}>{org.name || `ИНН ${org.inn}`}</span>
+                            {org.inn && <span style={{ display: 'block', fontSize: 11, color: M, marginTop: 2 }}>ИНН {org.inn}</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Краткий текст</div>
                 <textarea value={campaignForm.short_text} onChange={e => handleCampaignField('short_text', e.target.value)} placeholder="Краткое описание…" rows={2}
@@ -1108,14 +1184,18 @@ export default function ManagerPanel({ user, showToast }) {
               </div>
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Полный текст *</div>
-                <textarea value={campaignForm.full_text} onChange={e => handleCampaignField('full_text', e.target.value)} placeholder="Полный текст кампании…" rows={4}
+                <textarea value={campaignForm.full_text} onChange={e => handleCampaignField('full_text', e.target.value)} placeholder="Полный текст акции…" rows={4}
                   style={{ width: '100%', boxSizing: 'border-box', padding: 10, border: `1px solid ${BD}`, borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }}
                   onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button onClick={handleCreateCampaign} disabled={creatingCampaign}
+                <button onClick={() => handleCreateCampaign(true)} disabled={creatingCampaign}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 20px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  <Megaphone size={14} /> {creatingCampaign ? 'Создание…' : 'Создать кампанию'}
+                  <Megaphone size={14} /> {creatingCampaign ? 'Запуск…' : 'Создать и запустить'}
+                </button>
+                <button onClick={() => handleCreateCampaign(false)} disabled={creatingCampaign}
+                  style={{ height: 36, padding: '0 16px', background: INK, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Сохранить черновик
                 </button>
                 <button onClick={() => setShowCreateCampaign(false)}
                   style={{ height: 36, padding: '0 16px', background: S, color: M, border: `1px solid ${BD}`, borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -1128,7 +1208,7 @@ export default function ManagerPanel({ user, showToast }) {
           {deliveriesFor && (
             <div style={{ marginBottom: 20, padding: 20, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>Доставки кампании</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>Получатели акции</div>
                 <button onClick={() => { setDeliveriesFor(null); setDeliveries([]) }}
                   style={{ fontSize: 13, fontWeight: 500, color: M, cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', padding: '4px 8px', borderRadius: 4 }}>
                   ✕ Закрыть
@@ -1160,11 +1240,11 @@ export default function ManagerPanel({ user, showToast }) {
           )}
 
           {campsLoading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка кампаний…</div>
+            <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка акций…</div>
           ) : campaigns.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: M, fontSize: 14, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
               <Megaphone size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
-              <div>Нет созданных кампаний</div>
+              <div>Акций пока нет</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1180,6 +1260,9 @@ export default function ManagerPanel({ user, showToast }) {
                           {CAMPAIGN_CATEGORIES.find(c => c.id === camp.category)?.label || camp.category}
                           {camp.author && <span> • {camp.author}</span>}
                         </div>
+                        <div style={{ fontSize: 12, color: L, marginTop: 2 }}>
+                          Получатели: {camp.target_mode === 'selected' ? `${camp.target_count || 0} выбранных организаций` : 'все мои клиенты'}
+                        </div>
                         {(camp.start_date || camp.end_date) && (
                           <div style={{ fontSize: 12, color: L, marginTop: 2 }}>
                             {camp.start_date ? formatFullDate(camp.start_date) : ''}
@@ -1194,14 +1277,14 @@ export default function ManagerPanel({ user, showToast }) {
                     {camp.short_text && <div style={{ fontSize: 13, color: M, marginTop: 4 }}>{camp.short_text}</div>}
                     {activated && (
                       <div style={{ marginTop: 10, padding: '10px 12px', background: '#F0FDF4', borderRadius: 8, fontSize: 13, color: '#16A34A', fontWeight: 600 }}>
-                        Кампания активирована! Доставлено: {activated.delivered ?? activated.count ?? '—'}
+                        Акция запущена! Доставлено: {activated.delivered ?? activated.count ?? '—'}
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                       {camp.status === 'draft' && (
                         <button onClick={() => handleActivateCampaign(camp.id)} disabled={activatingId === camp.id}
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 14px', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                          {activatingId === camp.id ? 'Активация…' : 'Активировать'}
+                          {activatingId === camp.id ? 'Запуск…' : 'Запустить клиентам'}
                         </button>
                       )}
                       <button onClick={() => handleShowDeliveries(camp.id)}

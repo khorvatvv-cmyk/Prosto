@@ -151,6 +151,10 @@ export const chatApi = {
   send: (text, convId, clientUserId) => api('/chat/send', { method: 'POST', body: JSON.stringify({ text, conversation_id: convId, client_user_id: clientUserId }) }),
 }
 
+export const notificationsApi = {
+  list: () => api('/notifications'),
+}
+
 export const campaignApi = {
   list: (status) => api(`/campaigns${status ? `?status=${status}` : ''}`),
   create: (data) => api('/campaigns', { method: 'POST', body: JSON.stringify(data) }, { maxAttempts: 1 }),

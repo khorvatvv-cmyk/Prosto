@@ -1197,13 +1197,21 @@ async function handleSpecialistClientChat(request, env) {
 }
 
 async function handleCampaignList(request, env) {
-  await requireManagerContext(request, env)
+  const user = await requireManagerContext(request, env)
   const url = new URL(request.url)
   const status = url.searchParams.get('status')
-  let sql = 'SELECT c.*, u.name AS author_name FROM campaigns c JOIN users u ON c.author_id = u.id'
+  let sql = `
+    SELECT c.*, u.name AS author_name, COUNT(ct.organization_id) AS target_count
+    FROM campaigns c
+    JOIN users u ON c.author_id = u.id
+    LEFT JOIN campaign_targets ct ON ct.campaign_id = c.id
+  `
+  const conditions = []
   const params = []
-  if (status) { sql += ' WHERE c.status = ?'; params.push(status) }
-  sql += ' ORDER BY c.created_at DESC'
+  if (user.role === 'manager') { conditions.push('c.author_id = ?'); params.push(user.id) }
+  if (status) { conditions.push('c.status = ?'); params.push(status) }
+  if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`
+  sql += ' GROUP BY c.id ORDER BY c.created_at DESC'
   const result = params.length ? await env.DB.prepare(sql).bind(...params).all() : await env.DB.prepare(sql).all()
   return json({ campaigns: result.results || [] })
 }
@@ -1214,10 +1222,30 @@ async function handleCampaignCreate(request, env) {
   const title = String(body.title || '').trim()
   const fullText = String(body.full_text || '').trim()
   if (!title || !fullText) throw httpError(400, 'Заголовок и текст обязательны')
+  const defaultTargetMode = user.role === 'manager' ? 'all_my' : 'all_system'
+  const targetMode = String(body.target_mode || defaultTargetMode).trim()
+  if (!['all_my', 'all_system', 'selected'].includes(targetMode)) throw httpError(400, 'Недопустимый тип аудитории')
+  if (user.role === 'manager' && targetMode === 'all_system') throw httpError(403, 'Менеджер может отправлять акции только своим клиентам')
+  const targetOrgIds = [...new Set((Array.isArray(body.target_org_ids) ? body.target_org_ids : []).map(Number).filter(Number.isInteger))]
+  if (targetMode === 'selected' && !targetOrgIds.length) throw httpError(400, 'Выберите хотя бы одну организацию')
+
+  if (targetMode === 'selected') {
+    const placeholders = targetOrgIds.map(() => '?').join(',')
+    let accessSql = `SELECT id FROM organizations WHERE id IN (${placeholders})`
+    const accessParams = [...targetOrgIds]
+    if (user.role === 'manager') { accessSql += ' AND manager_id = ?'; accessParams.push(user.id) }
+    const allowed = await env.DB.prepare(accessSql).bind(...accessParams).all()
+    if ((allowed.results || []).length !== targetOrgIds.length) throw httpError(403, 'В аудитории есть недоступные организации')
+  }
   const result = await env.DB.prepare(`
-    INSERT INTO campaigns (office_id, author_id, title, subject, short_text, full_text, category, action_type, action_label, start_date, end_date, status, target_status)
-    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(user.id, title, body.subject || null, body.short_text || null, fullText, body.category || 'info', body.action_type || null, body.action_label || null, body.start_date || null, body.end_date || null, body.status || 'draft', body.target_status || null).run()
+    INSERT INTO campaigns (office_id, author_id, title, subject, short_text, full_text, category, action_type, action_label, start_date, end_date, status, target_status, target_mode)
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)
+  `).bind(user.id, title, body.subject || null, body.short_text || null, fullText, body.category || 'promo', body.action_type || null, body.action_label || null, body.start_date || null, body.end_date || null, body.target_status || 'all', targetMode).run()
+  if (targetMode === 'selected') {
+    for (const orgId of targetOrgIds) {
+      await env.DB.prepare('INSERT INTO campaign_targets (campaign_id, organization_id) VALUES (?, ?)').bind(result.meta.last_row_id, orgId).run()
+    }
+  }
   await audit(env, user.id, 'create_campaign', 'campaign', result.meta.last_row_id, title)
   return json({ id: result.meta.last_row_id }, 201)
 }
@@ -1226,15 +1254,28 @@ async function handleCampaignActivate(request, env, id) {
   const user = await requireManagerContext(request, env)
   const campaign = await env.DB.prepare('SELECT * FROM campaigns WHERE id = ?').bind(id).first()
   if (!campaign) throw httpError(404, 'Кампания не найдена')
+  if (user.role === 'manager' && campaign.author_id !== user.id) throw httpError(403, 'Можно запускать только свои кампании')
+  if (campaign.status === 'active') throw httpError(409, 'Кампания уже запущена')
   let sql = `SELECT o.id AS org_id, u.id AS user_id FROM organizations o JOIN organization_users ou ON o.id = ou.organization_id JOIN users u ON ou.user_id = u.id WHERE ou.membership_status = 'active'`
   const params = []
+  const targetMode = campaign.target_mode || (user.role === 'manager' ? 'all_my' : 'all_system')
+  if (targetMode === 'selected') {
+    sql += ' AND o.id IN (SELECT organization_id FROM campaign_targets WHERE campaign_id = ?)'
+    params.push(id)
+  } else if (targetMode === 'all_my') {
+    sql += ' AND o.manager_id = ?'
+    params.push(campaign.author_id)
+  } else if (targetMode === 'all_system' && user.role === 'manager') {
+    throw httpError(403, 'Менеджер не может запускать рассылку по всем организациям')
+  }
   if (campaign.target_status === 'no_regular_contract') { sql += ' AND o.service_status = ?'; params.push('no_regular_contract') }
-  else if (campaign.target_status && campaign.target_status !== 'unknown') { sql += ' AND o.service_status = ?'; params.push(campaign.target_status) }
+  else if (campaign.target_status && !['unknown', 'all'].includes(campaign.target_status)) { sql += ' AND o.service_status = ?'; params.push(campaign.target_status) }
   const targets = await env.DB.prepare(sql).bind(...params).all()
+  if (!(targets.results || []).length) throw httpError(400, 'В выбранной аудитории нет активных клиентов')
   let count = 0
   for (const t of targets.results || []) {
-    await env.DB.prepare('INSERT INTO campaign_deliveries (campaign_id, organization_id, user_id, delivered_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)').bind(id, t.org_id, t.user_id).run()
-    count++
+    const delivery = await env.DB.prepare('INSERT OR IGNORE INTO campaign_deliveries (campaign_id, organization_id, user_id, delivered_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)').bind(id, t.org_id, t.user_id).run()
+    count += delivery.meta.changes || 0
   }
   await env.DB.prepare("UPDATE campaigns SET status = 'active' WHERE id = ?").bind(id).run()
   await audit(env, user.id, 'activate_campaign', 'campaign', id, `Доставлено: ${count}`)
@@ -1242,7 +1283,10 @@ async function handleCampaignActivate(request, env, id) {
 }
 
 async function handleCampaignDeliveries(request, env, id) {
-  await requireManagerContext(request, env)
+  const user = await requireManagerContext(request, env)
+  const campaign = await env.DB.prepare('SELECT author_id FROM campaigns WHERE id = ?').bind(id).first()
+  if (!campaign) throw httpError(404, 'Кампания не найдена')
+  if (user.role === 'manager' && campaign.author_id !== user.id) throw httpError(403, 'Нет доступа к этой кампании')
   const result = await env.DB.prepare(`
     SELECT d.*, o.inn AS org_inn, o.name AS org_name, u.name AS user_name, u.email AS user_email
     FROM campaign_deliveries d
@@ -1252,6 +1296,56 @@ async function handleCampaignDeliveries(request, env, id) {
     ORDER BY d.created_at DESC
   `).bind(id).all()
   return json({ deliveries: result.results || [] })
+}
+
+async function handleNotifications(request, env) {
+  const user = await authenticate(request, env)
+  if (user.role !== 'user') throw httpError(403, 'Только для клиентов')
+  const [chatMessages, campaigns] = await env.DB.batch([
+    env.DB.prepare(`
+      SELECT m.id, m.text, m.created_at, m.is_read, c.id AS conversation_id,
+        COALESCE(s.name, s.email, 'Менеджер') AS sender_name
+      FROM manager_messages m
+      JOIN manager_conversations c ON c.id = m.conversation_id
+      LEFT JOIN users s ON s.id = m.sender_id
+      WHERE c.client_user_id = ? AND m.sender_id != ?
+      ORDER BY m.created_at DESC, m.id DESC LIMIT 30
+    `).bind(user.id, user.id),
+    env.DB.prepare(`
+      SELECT d.id, d.campaign_id, d.opened_at, d.delivered_at, c.title, c.short_text
+      FROM campaign_deliveries d
+      JOIN campaigns c ON c.id = d.campaign_id
+      WHERE d.user_id = ? AND d.hidden = 0 AND c.status = 'active'
+      ORDER BY d.delivered_at DESC, d.id DESC LIMIT 30
+    `).bind(user.id),
+  ])
+  const messageItems = (chatMessages.results || []).map(item => ({
+    type: 'manager_message',
+    id: item.id,
+    conversation_id: item.conversation_id,
+    title: `Сообщение от ${item.sender_name}`,
+    description: item.text,
+    created_at: item.created_at,
+    unread: !item.is_read,
+  }))
+  const campaignItems = (campaigns.results || []).map(item => ({
+    type: 'campaign',
+    id: item.id,
+    campaign_id: item.campaign_id,
+    title: `Новая акция: ${item.title}`,
+    description: item.short_text || 'Откройте раздел «Важное для вас»',
+    created_at: item.delivered_at,
+    unread: !item.opened_at,
+  }))
+  const items = [...messageItems, ...campaignItems]
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .slice(0, 40)
+  return json({
+    items,
+    unread_messages: messageItems.filter(item => item.unread).length,
+    unread_campaigns: campaignItems.filter(item => item.unread).length,
+    unread_count: items.filter(item => item.unread).length,
+  })
 }
 
 async function handleClientFeed(request, env) {
@@ -1537,6 +1631,8 @@ async function handleApi(request, env) {
   if (method === 'POST' && path === '/chat/send') return handleClientChatSend(request, env)
   match = path.match(/^\/chat\/(\d+)\/messages$/)
   if (match && method === 'GET') return handleClientChatMessages(request, env, Number(match[1]))
+
+  if (method === 'GET' && path === '/notifications') return handleNotifications(request, env)
 
   // Campaigns
   if (method === 'GET' && path === '/campaigns') return handleCampaignList(request, env)

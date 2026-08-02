@@ -1,6 +1,6 @@
 import { MessageCircle, Star, Bell, User, Phone, LogOut, Headphones, Briefcase, BarChart } from 'lucide-react'
 
-export default function Sidebar({ onNavigate, page, onLogout, user }) {
+export default function Sidebar({ onNavigate, page, onLogout, user, notificationSummary = {} }) {
   const A = 'var(--color-accent)'
   const INK = 'var(--color-ink)'
   const INK_MUTED = 'var(--color-ink-muted)'
@@ -10,8 +10,8 @@ export default function Sidebar({ onNavigate, page, onLogout, user }) {
 
   const clientItems = [
     { id: 'dashboard', label: 'Мои вопросы', icon: MessageCircle, action: () => onNavigate('dashboard') },
-    { id: 'important', label: 'Важное для вас', icon: Star, action: () => onNavigate('important') },
-    { id: 'notifs', label: 'Уведомления', icon: Bell, action: () => onNavigate('notifs') },
+    { id: 'important', label: 'Важное для вас', icon: Star, badge: notificationSummary.campaigns || 0, action: () => onNavigate('important') },
+    { id: 'notifs', label: 'Уведомления', icon: Bell, badge: notificationSummary.messages || 0, action: () => onNavigate('notifs') },
   ]
   const roleItems = {
     manager: [{ id: 'manager', label: 'АРМ менеджера', icon: Briefcase, action: () => onNavigate('manager') }],

@@ -44,7 +44,7 @@ function Tab({ tab, page, onNavigate }) {
   );
 }
 
-export default function MobileTabbar({ onNavigate, page, user }) {
+export default function MobileTabbar({ onNavigate, page, user, notificationSummary = {} }) {
   const role = user?.role
   const profile = { key: 'profile', label: 'Профиль', icon: User }
   const tabsByRole = {
@@ -59,7 +59,12 @@ export default function MobileTabbar({ onNavigate, page, user }) {
       profile,
     ],
   }
-  const tabs = tabsByRole[role] || TABS
+  const clientTabs = TABS.map(tab => tab.key === 'important'
+    ? { ...tab, badge: notificationSummary.campaigns || null }
+    : tab.key === 'notifs'
+      ? { ...tab, badge: notificationSummary.messages || null }
+      : tab)
+  const tabs = tabsByRole[role] || clientTabs
 
   return (
     <nav

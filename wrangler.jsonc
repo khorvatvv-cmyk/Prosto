@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "prosto-db",
-      "database_id": "local",
+      "database_id": "6f2660a0-864f-4026-993b-a0ce8bc8ea7f",
       "migrations_dir": "migrations"
     }
   ],

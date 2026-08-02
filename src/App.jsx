@@ -105,7 +105,7 @@ export default function App() {
       <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} />
       <div className="flex-1 flex overflow-hidden">
         <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} onLogout={logout} />
-        <main className="flex-1 overflow-y-auto p-8 md:p-5 pb-20 md:pb-20" style={{ scrollBehavior: 'smooth' }}>
+        <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-8 pb-20" style={{ scrollBehavior: 'smooth' }}>
           <div className="max-w-[1060px] mx-auto">
             {page === 'dashboard' && (
               <Dashboard

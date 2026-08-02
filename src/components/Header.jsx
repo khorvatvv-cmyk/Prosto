@@ -17,14 +17,14 @@ export default function Header({ onNavigate, onOpenManager, page, user }) {
   const initials = user?.name ? user.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : user?.email?.[0]?.toUpperCase() || '?'
 
   return (
-    <header className="flex items-center px-5 flex-shrink-0 gap-4" style={{ height: 56, borderBottom: `1px solid ${BORDER}`, background: SURFACE, boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}>
+    <header className="flex items-center px-3 md:px-5 flex-shrink-0 gap-2 md:gap-4" style={{ height: 56, borderBottom: `1px solid ${BORDER}`, background: SURFACE, boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}>
       <div className="flex-shrink-0 cursor-pointer" onClick={() => onNavigate('dashboard')}>
         <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-.03em', color: INK }}>
           просто<span style={{ color: ACCENT }}>.</span>
         </span>
       </div>
 
-      <nav className="flex gap-1 flex-1">
+      <nav className="hidden md:flex gap-1 flex-1">
         {navItems.map(item => (
           <a key={item.id} onClick={() => onNavigate(item.id)}
             className="cursor-pointer transition-all"

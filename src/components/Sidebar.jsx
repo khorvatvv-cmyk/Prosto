@@ -23,7 +23,7 @@ export default function Sidebar({ onNavigate, onOpenManager, page, onLogout }) {
   })
 
   return (
-    <nav style={{ width: 228, borderRight: `1px solid ${BORDER}`, flexShrink: 0, display: 'flex', flexDirection: 'column', background: SURFACE, overflowY: 'auto', padding: '12px 8px' }} className="hidden md:flex">
+    <nav style={{ width: 228, borderRight: `1px solid ${BORDER}`, flexShrink: 0, flexDirection: 'column', background: SURFACE, overflowY: 'auto', padding: '12px 8px' }} className="hidden md:flex">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {items.map(item => {
           const Icon = item.icon

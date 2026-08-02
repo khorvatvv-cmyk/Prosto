@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Headphones, Send } from 'lucide-react'
 import { chatApi } from '../api.js'
+import { AnimatedTooltip, PrimaryGlowButton, StatefulButton } from './ui/AceternityEffects.jsx'
 
 const A = '#E50071'
 const INK = '#18181B'
@@ -99,6 +100,7 @@ export default function ClientManagerChat({ user, showToast }) {
     const ok = await sendMessage(t, conversation?.id)
     if (!ok) setText(t)
     setSending(false)
+    return ok
   }
 
   const handleFirstSend = async () => {
@@ -109,6 +111,7 @@ export default function ClientManagerChat({ user, showToast }) {
     const ok = await sendMessage(t, null)
     if (!ok) setText(t)
     setSending(false)
+    return ok
   }
 
   const handleKeyDown = (e, handler) => {
@@ -184,10 +187,12 @@ export default function ClientManagerChat({ user, showToast }) {
               onFocus={e => e.target.style.borderColor = A}
               onBlur={e => e.target.style.borderColor = BD}
             />
-            <button onClick={handleSend} disabled={!text.trim() || sending}
-              style={{ width: 42, height: 42, background: text.trim() ? A : S2, border: 'none', cursor: text.trim() ? 'pointer' : 'not-allowed', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Send size={18} color={text.trim() ? '#fff' : L} />
-            </button>
+            <AnimatedTooltip label="Отправить сообщение">
+              <PrimaryGlowButton onClick={handleSend} disabled={!text.trim() || sending}
+                style={{ width: 42, height: 42, background: text.trim() ? A : S2, border: 'none', cursor: text.trim() ? 'pointer' : 'not-allowed', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Send size={18} color={text.trim() ? '#fff' : L} />
+              </PrimaryGlowButton>
+            </AnimatedTooltip>
           </div>
         </div>
       ) : (
@@ -208,10 +213,10 @@ export default function ClientManagerChat({ user, showToast }) {
               onFocus={e => e.target.style.borderColor = A}
               onBlur={e => e.target.style.borderColor = BD}
             />
-            <button onClick={handleFirstSend} disabled={!text.trim() || sending}
+            <StatefulButton onAction={handleFirstSend} disabled={!text.trim() || sending} loadingText="Отправляем…" successText="Отправлено"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 44, padding: '0 24px', background: text.trim() ? A : S2, color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: text.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-              <Send size={16} /> {sending ? 'Отправка…' : 'Отправить'}
-            </button>
+              <Send size={16} /> Отправить
+            </StatefulButton>
           </div>
         </div>
       )}

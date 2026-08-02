@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Bell, Bot, UserCheck, CheckCircle2, MessageCircle, Megaphone } from 'lucide-react'
 import { feedApi, notificationsApi } from '../api.js'
+import { EventBorder, HoverGroup, HoverItem } from './ui/AceternityEffects.jsx'
 
 function requestNotification(request) {
   if (request.status === 'done') return { icon: CheckCircle2, title: 'Вопрос решён', description: request.title }
@@ -73,27 +74,31 @@ export default function Notifications({ requests = [], onOpenDetail, onNavigate,
           <p style={{ margin: 0, fontSize: 14, color: 'var(--color-ink-muted)' }}>Здесь появятся сообщения менеджера, акции и изменения по обращениям.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 760 }}>
-          {items.map(item => {
+        <HoverGroup id="notifications" gap={8} className="max-w-[760px]">
+          {items.map((item, index) => {
             const Icon = item.icon || (item.type === 'manager_message' ? MessageCircle : Megaphone)
             return (
-              <button key={`${item.type}-${item.id}`} type="button" onClick={() => openItem(item)}
-                style={{ display: 'flex', alignItems: 'flex-start', gap: 12, width: '100%', padding: 14, textAlign: 'left', border: `1px solid ${item.unread ? 'var(--color-accent)' : 'var(--color-border)'}`, borderRadius: 10, background: item.unread ? 'var(--color-accent-tint)' : 'var(--color-surface)', color: 'var(--color-ink)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                <span style={{ width: 36, height: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 9, background: 'var(--color-surface)', color: 'var(--color-accent)' }}>
-                  <Icon size={18} />
-                </span>
-                <span style={{ minWidth: 0, flex: 1 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                    <span style={{ fontSize: 14, fontWeight: 650 }}>{item.title}</span>
-                    {item.unread && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--color-accent)', flexShrink: 0 }} />}
-                  </span>
-                  <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, color: 'var(--color-ink-muted)' }}>{item.description}</span>
-                  {item.created_at && <span style={{ display: 'block', marginTop: 5, fontSize: 11, color: 'var(--color-ink-light)' }}>{formatDate(item.created_at)}</span>}
-                </span>
-              </button>
+              <HoverItem key={`${item.type}-${item.id}`} index={index} glow style={{ border: `1px solid ${item.unread ? 'var(--color-accent)' : 'var(--color-border)'}`, borderRadius: 10, background: item.unread ? 'var(--color-accent-tint)' : 'var(--color-surface)' }}>
+                <EventBorder active={item.unread}>
+                  <button type="button" onClick={() => openItem(item)}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 12, width: '100%', padding: 14, textAlign: 'left', border: 'none', borderRadius: 10, background: 'transparent', color: 'var(--color-ink)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <span style={{ width: 36, height: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 9, background: 'var(--color-surface)', color: 'var(--color-accent)' }}>
+                      <Icon size={18} />
+                    </span>
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontSize: 14, fontWeight: 650 }}>{item.title}</span>
+                        {item.unread && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--color-accent)', flexShrink: 0 }} />}
+                      </span>
+                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, color: 'var(--color-ink-muted)' }}>{item.description}</span>
+                      {item.created_at && <span style={{ display: 'block', marginTop: 5, fontSize: 11, color: 'var(--color-ink-light)' }}>{formatDate(item.created_at)}</span>}
+                    </span>
+                  </button>
+                </EventBorder>
+              </HoverItem>
             )
           })}
-        </div>
+        </HoverGroup>
       )}
     </section>
   )

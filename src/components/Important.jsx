@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Sparkles, X, Megaphone, ArrowRight } from 'lucide-react'
 import { feedApi } from '../api.js'
+import { GlowingCard, ImportantGradient, PrimaryGlowButton } from './ui/AceternityEffects.jsx'
 
 const A = '#E50071'
 const INK = '#18181B'
@@ -94,11 +95,11 @@ export default function Important({ showToast, onNavigate }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {items.map(item => (
-            <div key={item.id} onClick={() => handleOpen(item.id)}
+          {items.map((item, index) => {
+            const card = (
+            <GlowingCard key={item.id} spotlight onClick={() => handleOpen(item.id)}
               style={{ background: S, border: `1px solid ${BD}`, borderRadius: 14, padding: 18, cursor: 'pointer', transition: 'all .2s', boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = A; e.currentTarget.style.boxShadow = '0 4px 14px rgba(229,0,113,.08)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = BD; e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,.03)' }}>
+              >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
@@ -117,18 +118,20 @@ export default function Important({ showToast, onNavigate }) {
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 14 }}>
                 {item.action_label && (
-                  <button onClick={(e) => { e.stopPropagation(); handleAction(item.id) }} disabled={busy[item.id]}
+                  <PrimaryGlowButton onClick={(e) => { e.stopPropagation(); handleAction(item.id) }} disabled={busy[item.id]}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 16px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                     <ArrowRight size={15} /> {item.action_label}
-                  </button>
+                  </PrimaryGlowButton>
                 )}
                 <button onClick={(e) => { e.stopPropagation(); handleHide(item.id) }} disabled={busy[`h-${item.id}`]}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 16px', background: S, color: M, border: `1px solid ${BD}`, borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                   <X size={15} /> Скрыть
                 </button>
               </div>
-            </div>
-          ))}
+            </GlowingCard>
+            )
+            return index === 0 ? <ImportantGradient key={item.id}>{card}</ImportantGradient> : card
+          })}
         </div>
       )}
     </section>

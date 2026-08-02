@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowLeft, Phone, Send, CheckCircle2, AlertCircle } from 'lucide-react'
 import { requestsApi } from '../api.js'
+import { AnimatedTooltip, CompactTimeline, EventBorder, GlowingCard, PrimaryGlowButton, StatefulButton } from './ui/AceternityEffects.jsx'
 
 function formatMessageText(text) {
   if (!text) return null
@@ -173,6 +174,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     assistantRequested.current = false
     setPolling(true)
     loadMessages()
+    return true
   }
 
   const handleEvaluate = async (helped) => {
@@ -211,7 +213,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
         <ArrowLeft size={16} /> Назад к вопросам
       </button>
 
-      <div style={{ display: 'flex', border: `1px solid ${BD}`, borderRadius: 14, overflow: 'hidden', height: 'calc(100vh - 56px - 32px - 32px - 52px)', background: S, boxShadow: '0 2px 4px rgba(0,0,0,.05)' }} className="chat-layout">
+      <GlowingCard spotlight active style={{ display: 'flex', border: `1px solid ${BD}`, borderRadius: 14, overflow: 'hidden', height: 'calc(100vh - 56px - 32px - 32px - 52px)', background: S, boxShadow: '0 2px 4px rgba(0,0,0,.05)' }} contentStyle={{ display: 'flex', width: '100%', height: '100%' }} className="chat-layout">
         {/* META */}
         <div className="chat-meta" style={{ width: 260, borderRight: `1px solid ${BD}`, padding: 22, overflowY: 'auto', display: 'flex', flexDirection: 'column', background: S, flexShrink: 0 }}>
           <div style={{ marginBottom: 18 }}>
@@ -244,9 +246,12 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
 
         {/* CHAT */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <div style={{ padding: '16px 22px', borderBottom: `1px solid ${BD}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: INK, margin: 0 }}>{activeRequest.title}</h3>
-            <div style={{ fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>{isL0 ? 'Ассистент' : (activeRequest.specialist_name || 'Специалист')}</div>
+          <div style={{ padding: '14px 22px 12px', borderBottom: `1px solid ${BD}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: INK, margin: 0 }}>{activeRequest.title}</h3>
+              <div style={{ fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>{isL0 ? 'Ассистент' : (activeRequest.specialist_name || 'Специалист')}</div>
+            </div>
+            <CompactTimeline request={activeRequest} />
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: 22, display: 'flex', flexDirection: 'column', gap: 12, background: BG }}>
@@ -259,12 +264,12 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
             ) : (
               <>
                 {messages.map((msg, i) => (
-                  <div key={i} style={{
-                    maxWidth: 480, padding: '14px 18px',
+                  <EventBorder key={i} active={i === messages.length - 1 && msg.sender !== 'user'} style={{ maxWidth: 480, alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start', borderRadius: 10 }}>
+                  <GlowingCard spotlight={msg.sender === 'assistant' || msg.sender === 'specialist'} style={{
+                    padding: '14px 18px',
                     border: `1px solid ${msg.sender === 'system' ? S2 : BD}`,
                     borderRadius: 10, fontSize: 14, lineHeight: 1.6,
                     background: msg.sender === 'user' ? S2 : msg.sender === 'system' ? S2 : S,
-                    alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
                     textAlign: msg.sender === 'system' ? 'center' : 'left',
                     color: msg.sender === 'system' ? M : INK,
                     animation: 'fadeUp .3s ease both',
@@ -285,7 +290,8 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                       </div>
                     )}
                     {msg.sender === 'assistant' ? formatMessageText(msg.text) : msg.text}
-                  </div>
+                  </GlowingCard>
+                  </EventBorder>
                 ))}
 
                 {waitingAssistant && !loading && (
@@ -315,12 +321,10 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                   <div style={{ marginTop: 8, padding: '12px 16px', background: S2, borderRadius: 10, alignSelf: 'center', maxWidth: 420 }}>
                     <div style={{ fontSize: 13, color: M, marginBottom: 10, textAlign: 'center' }}>Помогло решение?</div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-                      <button onClick={() => handleEvaluate(true)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
-                        onMouseEnter={e=>{e.currentTarget.style.background=INK;e.currentTarget.style.color='#fff'}}
-                        onMouseLeave={e=>{e.currentTarget.style.background=S;e.currentTarget.style.color=INK}}>
+                      <StatefulButton onAction={() => handleEvaluate(true)} loadingText="Подтверждаем…" successText="Решение подтверждено"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}>
                         <CheckCircle2 size={16} /> Да, всё работает
-                      </button>
+                      </StatefulButton>
                       <button onClick={() => handleEvaluate(false)}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
                         onMouseEnter={e=>{e.currentTarget.style.background=A;e.currentTarget.style.color='#fff';e.currentTarget.style.borderColor=A}}
@@ -336,12 +340,10 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                   <div style={{ marginTop: 8, padding: '12px 16px', background: '#F0FDF4', borderRadius: 10, alignSelf: 'center', maxWidth: 420, border: '1px solid #BBF7D0' }}>
                     <div style={{ fontSize: 13, color: M, marginBottom: 10, textAlign: 'center' }}>Специалист передал результат. Помогло?</div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-                      <button onClick={() => handleEvaluate(true)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
-                        onMouseEnter={e=>{e.currentTarget.style.background=INK;e.currentTarget.style.color='#fff'}}
-                        onMouseLeave={e=>{e.currentTarget.style.background=S;e.currentTarget.style.color=INK}}>
+                      <StatefulButton onAction={() => handleEvaluate(true)} loadingText="Подтверждаем…" successText="Решение подтверждено"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: A, color: '#fff', fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}>
                         <CheckCircle2 size={16} /> Проблема решена
-                      </button>
+                      </StatefulButton>
                       <button onClick={() => handleEvaluate(false)}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
                         onMouseEnter={e=>{e.currentTarget.style.background=A;e.currentTarget.style.color='#fff';e.currentTarget.style.borderColor=A}}
@@ -369,10 +371,12 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                 style={{ flex: 1, border: `1px solid ${BD}`, background: S2, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: INK, padding: '11px 15px', borderRadius: 8, transition: 'all .2s' }}
                 onFocus={e => { e.target.style.borderColor = A; e.target.style.boxShadow = '0 0 0 4px rgba(229,0,113,.1)' }}
                 onBlur={e => { e.target.style.borderColor = BD; e.target.style.boxShadow = 'none' }} />
-              <button onClick={handleSend} disabled={!input.trim() || sending}
-                style={{ width: 42, height: 42, background: input.trim() ? A : S2, border: 'none', cursor: input.trim() ? 'pointer' : 'not-allowed', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
-                <Send size={18} style={{ color: input.trim() ? '#fff' : L }} />
-              </button>
+              <AnimatedTooltip label="Отправить сообщение">
+                <PrimaryGlowButton onClick={handleSend} disabled={!input.trim() || sending}
+                  style={{ width: 42, height: 42, background: input.trim() ? A : S2, border: 'none', cursor: input.trim() ? 'pointer' : 'not-allowed', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
+                  <Send size={18} style={{ color: input.trim() ? '#fff' : L }} />
+                </PrimaryGlowButton>
+              </AnimatedTooltip>
             </div>
           )}
           {isDone && (
@@ -381,7 +385,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
             </div>
           )}
         </div>
-      </div>
+      </GlowingCard>
     </div>
   )
 }

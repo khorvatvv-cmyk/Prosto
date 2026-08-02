@@ -1,4 +1,5 @@
 import { MessageCircle, Star, Bell, User, Phone, LogOut, Headphones, Briefcase, BarChart } from 'lucide-react'
+import { HoverGroup, HoverItem } from './ui/AceternityEffects.jsx'
 
 export default function Sidebar({ onNavigate, page, onLogout, user, notificationSummary = {} }) {
   const A = 'var(--color-accent)'
@@ -36,48 +37,48 @@ export default function Sidebar({ onNavigate, page, onLogout, user, notification
 
   return (
     <nav style={{ width: 228, borderRight: `1px solid ${BORDER}`, flexShrink: 0, flexDirection: 'column', background: SURFACE, overflowY: 'auto', padding: '12px 8px' }} className="hidden md:flex">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {items.map(item => {
+      <HoverGroup id="sidebar-main" gap={2}>
+        {items.map((item, index) => {
           const Icon = item.icon
           const active = page === item.id
           return (
-            <button key={item.id} onClick={item.action} style={itemStyle(active)}
-              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = SURFACE_2; e.currentTarget.style.color = INK } }}
-              onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = INK_MUTED } }}>
-              {active && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 20, background: A, borderRadius: 2 }} />}
-              <Icon size={18} strokeWidth={1.5} />
-              {item.label}
-              {item.badge && <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: A, background: 'var(--color-accent-tint)', padding: '2px 8px', borderRadius: 10, minWidth: 20, textAlign: 'center' }}>{item.badge}</span>}
-            </button>
+            <HoverItem key={item.id} index={index} active={active} style={{ borderRadius: 8 }}>
+              <button onClick={item.action} style={itemStyle(active)}>
+                {active && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 20, background: A, borderRadius: 2 }} />}
+                <Icon size={18} strokeWidth={1.5} />
+                {item.label}
+                {item.badge && <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: A, background: 'var(--color-accent-tint)', padding: '2px 8px', borderRadius: 10, minWidth: 20, textAlign: 'center' }}>{item.badge}</span>}
+              </button>
+            </HoverItem>
           )
         })}
-      </div>
+      </HoverGroup>
 
       <div style={{ flex: 1 }} />
 
       <div style={{ marginTop: 'auto' }}>
         <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.12em', color: 'var(--color-ink-faint)', padding: '12px 12px 6px' }}>ОРГАНИЗАЦИЯ</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <button onClick={() => onNavigate('profile')} style={itemStyle(page === 'profile')}
-            onMouseEnter={e => { if (page !== 'profile') { e.currentTarget.style.background = SURFACE_2; e.currentTarget.style.color = INK } }}
-            onMouseLeave={e => { if (page !== 'profile') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = INK_MUTED } }}>
-            {page === 'profile' && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 20, background: A, borderRadius: 2 }} />}
-            <User size={18} strokeWidth={1.5} />
-            Профиль
-          </button>
-          {user?.role === 'user' && <button onClick={() => onNavigate('manager-chat')} style={itemStyle(false)}
-            onMouseEnter={e => { e.currentTarget.style.background = SURFACE_2; e.currentTarget.style.color = INK }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = INK_MUTED }}>
-            <Phone size={18} strokeWidth={1.5} />
-            Связаться с менеджером
-          </button>}
-          <button onClick={onLogout} style={itemStyle(false)}
-            onMouseEnter={e => { e.currentTarget.style.background = SURFACE_2; e.currentTarget.style.color = INK }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = INK_MUTED }}>
-            <LogOut size={18} strokeWidth={1.5} />
-            Выйти
-          </button>
-        </div>
+        <HoverGroup id="sidebar-footer" gap={2}>
+          <HoverItem index={0} active={page === 'profile'} style={{ borderRadius: 8 }}>
+            <button onClick={() => onNavigate('profile')} style={itemStyle(page === 'profile')}>
+              {page === 'profile' && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 20, background: A, borderRadius: 2 }} />}
+              <User size={18} strokeWidth={1.5} />
+              Профиль
+            </button>
+          </HoverItem>
+          {user?.role === 'user' && <HoverItem index={1} style={{ borderRadius: 8 }}>
+            <button onClick={() => onNavigate('manager-chat')} style={itemStyle(false)}>
+              <Phone size={18} strokeWidth={1.5} />
+              Связаться с менеджером
+            </button>
+          </HoverItem>}
+          <HoverItem index={2} style={{ borderRadius: 8 }}>
+            <button onClick={onLogout} style={itemStyle(false)}>
+              <LogOut size={18} strokeWidth={1.5} />
+              Выйти
+            </button>
+          </HoverItem>
+        </HoverGroup>
       </div>
     </nav>
   )

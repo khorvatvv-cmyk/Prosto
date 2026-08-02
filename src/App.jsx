@@ -19,6 +19,7 @@ import OnboardingProfile from './components/OnboardingProfile.jsx'
 import SpecialistPanel from './components/SpecialistPanel.jsx'
 import ManagerPanel from './components/ManagerPanel.jsx'
 import RofPanel from './components/RofPanel.jsx'
+import { PointerGlowArea } from './components/ui/AceternityEffects.jsx'
 
 const STAFF_ROLES = ['manager', 'rof', 'specialist']
 
@@ -196,7 +197,7 @@ export default function App() {
       <div className="h-screen flex flex-col bg-[var(--color-bg)]">
         <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} notificationSummary={notificationSummary} />
         <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-8 pb-20" style={{ scrollBehavior: 'smooth' }}>
-          <div className="max-w-[1200px] mx-auto">
+          <PointerGlowArea className="max-w-[1200px] mx-auto">
             {page === 'specialist' && (user.role === 'specialist' || user.role === 'admin') && (
               <SpecialistPanel user={user} showToast={showToast} />
             )}
@@ -212,7 +213,7 @@ export default function App() {
             {page === 'profile' && (
               <Profile user={user} onOpenManager={() => {}} onLogout={logout} onUpdateUser={setUser} />
             )}
-          </div>
+          </PointerGlowArea>
         </main>
         <MobileTabbar onNavigate={goTo} page={page} user={user} notificationSummary={notificationSummary} />
         {toast && <Toast message={toast} />}
@@ -226,7 +227,7 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden">
         <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} onLogout={logout} user={user} notificationSummary={notificationSummary} />
         <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-8 pb-20" style={{ scrollBehavior: 'smooth' }}>
-          <div className="max-w-[1060px] mx-auto">
+          <PointerGlowArea className="max-w-[1060px] mx-auto">
             {page === 'dashboard' && (
               <Dashboard
                 requests={requests}
@@ -265,7 +266,7 @@ export default function App() {
             {page === 'admin' && user?.role === 'admin' && (
               <AdminPanel user={user} />
             )}
-          </div>
+          </PointerGlowArea>
         </main>
       </div>
       <MobileTabbar onNavigate={goTo} page={page} user={user} notificationSummary={notificationSummary} />

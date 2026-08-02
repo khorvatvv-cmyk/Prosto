@@ -1,3 +1,5 @@
+import { AnimatedTooltip } from './ui/AceternityEffects.jsx'
+
 export default function Header({ onNavigate, page, user, notificationSummary = {} }) {
   const ACCENT = 'var(--color-accent)'
   const INK = 'var(--color-ink)'
@@ -59,24 +61,30 @@ export default function Header({ onNavigate, page, user, notificationSummary = {
       </nav>
 
       <div className="flex items-center gap-2.5">
-        {role === 'user' && <button onClick={() => onNavigate('manager-chat')} className="inline-flex items-center gap-2 px-3.5 py-1.5 border cursor-pointer"
-          style={{ borderColor: BORDER, background: SURFACE, fontSize: 13, fontWeight: 500, color: INK, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
-          onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.color=ACCENT}}
-          onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=INK}}>
-          <span className="animate-pulse-dot" style={{ width: 8, height: 8, background: ACCENT, borderRadius: '50%', flexShrink: 0 }}></span>
-          <span className="hidden md:inline">Команда поддержки</span>
-        </button>}
+        {role === 'user' && (
+          <AnimatedTooltip label="Написать команде поддержки">
+            <button onClick={() => onNavigate('manager-chat')} className="inline-flex items-center gap-2 px-3.5 py-1.5 border cursor-pointer"
+              style={{ borderColor: BORDER, background: SURFACE, fontSize: 13, fontWeight: 500, color: INK, borderRadius: 6, fontFamily: 'inherit', transition: 'all .2s' }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.color=ACCENT}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=INK}}>
+              <span className="animate-pulse-dot" style={{ width: 8, height: 8, background: ACCENT, borderRadius: '50%', flexShrink: 0 }}></span>
+              <span className="hidden md:inline">Команда поддержки</span>
+            </button>
+          </AnimatedTooltip>
+        )}
 
         <span className="hidden md:inline" style={{ fontSize: 13, color: INK_MUTED, whiteSpace: 'nowrap' }}>
           {user?.name || user?.email}
         </span>
 
-        <div onClick={() => onNavigate('profile')} className="cursor-pointer"
-          style={{ width: 34, height: 34, background: INK, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, borderRadius: '50%', transition: 'all .2s' }}
-          onMouseEnter={e=>{e.currentTarget.style.background=ACCENT;e.currentTarget.style.transform='scale(1.05)'}}
-          onMouseLeave={e=>{e.currentTarget.style.background=INK;e.currentTarget.style.transform='scale(1)'}}>
-          {initials}
-        </div>
+        <AnimatedTooltip label="Открыть профиль">
+          <div onClick={() => onNavigate('profile')} className="cursor-pointer"
+            style={{ width: 34, height: 34, background: INK, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, borderRadius: '50%', transition: 'all .2s' }}
+            onMouseEnter={e=>{e.currentTarget.style.background=ACCENT;e.currentTarget.style.transform='scale(1.05)'}}
+            onMouseLeave={e=>{e.currentTarget.style.background=INK;e.currentTarget.style.transform='scale(1)'}}>
+            {initials}
+          </div>
+        </AnimatedTooltip>
       </div>
     </header>
   )

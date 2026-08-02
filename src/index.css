@@ -91,3 +91,233 @@ body { margin: 0; }
 @media(max-width:768px){
   .chat-meta{display:none!important}
 }
+
+/* Aceternity UI mechanics, adapted to the light Prosto brand system. */
+.aceternity-workspace-glow {
+  position: relative;
+  min-height: 100%;
+  isolation: isolate;
+}
+.aceternity-workspace-content { position: relative; z-index: 1; }
+.aceternity-pointer-glow {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(229,0,113,.13) 0%, rgba(255,151,202,.08) 42%, rgba(229,0,113,0) 72%);
+  filter: blur(22px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s ease;
+  will-change: transform, opacity;
+}
+.aceternity-pointer-glow.is-visible { opacity: 1; }
+
+.aceternity-glowing-card {
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-active: 0;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.aceternity-glow-border {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(130px circle at var(--glow-x) var(--glow-y), rgba(229,0,113,.92), rgba(255,151,202,.48) 38%, rgba(228,228,231,0) 72%);
+  opacity: var(--glow-active);
+  transition: opacity .25s ease;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.aceternity-card-spotlight {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: radial-gradient(150px circle at var(--glow-x) var(--glow-y), rgba(229,0,113,.075), rgba(255,240,247,.04) 48%, transparent 75%);
+  opacity: var(--glow-active);
+  transition: opacity .25s ease;
+  pointer-events: none;
+}
+.aceternity-card-content { position: relative; z-index: 1; }
+
+.aceternity-hover-group { display: flex; flex-direction: column; }
+.aceternity-hover-item {
+  position: relative;
+  isolation: isolate;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.aceternity-hover-item:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(24,24,27,.055); }
+.aceternity-hover-underlay {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(110deg, rgba(255,240,247,.88), rgba(255,248,251,.56));
+  pointer-events: none;
+}
+.aceternity-hover-content {
+  position: relative;
+  z-index: 1;
+  display: inherit;
+  align-items: inherit;
+  justify-content: inherit;
+  flex-direction: inherit;
+  gap: inherit;
+  width: 100%;
+}
+
+.aceternity-primary-button {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  transform: translateY(0);
+  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.aceternity-primary-button:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(229,0,113,.28) !important; }
+.aceternity-primary-button:not(:disabled):active { transform: translateY(0) scale(.985); }
+.aceternity-button-glow {
+  position: absolute;
+  z-index: -1;
+  inset: -2px;
+  border-radius: inherit;
+  opacity: 0;
+  background: radial-gradient(80% 140% at 50% 50%, #E50071 0%, #ff97ca 62%, transparent 100%);
+  filter: blur(1.5px);
+  transition: opacity .25s ease, inset .25s ease;
+  pointer-events: none;
+}
+.aceternity-primary-button:not(:disabled):hover .aceternity-button-glow { opacity: .82; inset: -3px; }
+.aceternity-button-content { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: inherit; }
+.aceternity-primary-button.state-success { background: var(--color-accent-press) !important; }
+
+.aceternity-tabs {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  width: fit-content;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--color-surface-2);
+}
+.aceternity-tab {
+  position: relative;
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-ink-muted);
+  font: 500 13px/1 var(--font-sans);
+  cursor: pointer;
+}
+.aceternity-tab[aria-selected="true"] { color: var(--color-ink); }
+.aceternity-tab-active {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(229,0,113,.08);
+  border-radius: inherit;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgba(24,24,27,.06);
+}
+.aceternity-tab-label { position: relative; z-index: 1; white-space: nowrap; }
+
+.aceternity-timeline {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0,1fr));
+  gap: 0;
+  width: 100%;
+  margin-top: 18px;
+  padding: 0 4px;
+}
+.aceternity-timeline-track {
+  position: absolute;
+  top: 7px;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-3);
+}
+.aceternity-timeline-progress { height: 100%; background: linear-gradient(90deg, #E50071, #ff97ca); }
+.aceternity-timeline-step { position: relative; display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 7px; color: var(--color-ink-light); }
+.aceternity-timeline-dot {
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--color-surface);
+  border-radius: 50%;
+  background: var(--color-surface-3);
+  box-shadow: 0 0 0 1px var(--color-border);
+}
+.aceternity-timeline-step.is-complete .aceternity-timeline-dot { background: #E50071; box-shadow: 0 0 0 1px rgba(229,0,113,.3); }
+.aceternity-timeline-step.is-current .aceternity-timeline-dot { background: #E50071; box-shadow: 0 0 0 4px rgba(229,0,113,.12), 0 0 16px rgba(229,0,113,.25); animation: timeline-arrive .8s ease-out 1; }
+.aceternity-timeline-step.is-current { color: var(--color-accent); }
+.aceternity-timeline-label { overflow: hidden; width: 100%; font-size: 10px; font-weight: 600; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes timeline-arrive { 0% { box-shadow: 0 0 0 0 rgba(229,0,113,.3) } 100% { box-shadow: 0 0 0 8px rgba(229,0,113,0), 0 0 16px rgba(229,0,113,.25) } }
+
+.aceternity-tooltip-wrap { position: relative; display: inline-flex; }
+.aceternity-tooltip {
+  position: absolute;
+  z-index: 80;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: 220px;
+  transform: translateX(-50%);
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(24,24,27,.12);
+  color: var(--color-ink);
+  font-size: 11px;
+  line-height: 1.25;
+  pointer-events: none;
+}
+
+.aceternity-event-border { position: relative; border-radius: inherit; }
+.aceternity-event-border::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: -1px;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  padding: 1px;
+  background: conic-gradient(from var(--event-angle), transparent 0 75%, #E50071 88%, #ff97ca 96%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.aceternity-event-border.is-running::before { opacity: 1; animation: moving-event-border .95s linear 3; }
+@property --event-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+@keyframes moving-event-border { to { --event-angle: 360deg; } }
+
+.aceternity-background-gradient { position: relative; padding: 1px; border-radius: inherit; background: linear-gradient(120deg, rgba(229,0,113,.32), rgba(255,151,202,.15), rgba(228,228,231,.55)); }
+.aceternity-background-gradient.is-animated { background-size: 180% 180%; animation: important-gradient 8s ease infinite; }
+.aceternity-background-gradient-inner { border-radius: inherit; background: #fff; }
+@keyframes important-gradient { 0%,100% { background-position: 0 50% } 50% { background-position: 100% 50% } }
+
+@media (hover: none), (pointer: coarse), (max-width: 768px) {
+  .aceternity-pointer-glow, .aceternity-glow-border, .aceternity-card-spotlight, .aceternity-button-glow { display: none; }
+  .aceternity-hover-item:hover, .aceternity-primary-button:not(:disabled):hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aceternity-pointer-glow, .aceternity-glow-border, .aceternity-card-spotlight, .aceternity-button-glow, .aceternity-event-border::before { display: none; }
+  .aceternity-hover-item, .aceternity-primary-button, .aceternity-tab-active, .aceternity-timeline-progress { animation: none !important; transition: none !important; }
+}
+@media(max-width:640px){
+  .aceternity-timeline-label { font-size: 8px; }
+  .aceternity-tab { padding-inline: 12px; }
+}

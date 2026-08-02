@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { MessageCirclePlus } from 'lucide-react'
+import { CyclingPlaceholderInput, StatefulButton } from './ui/AceternityEffects.jsx'
 
 export default function NewRequest({ onSubmit, onCancel }) {
   const [title, setTitle] = useState('')
@@ -7,7 +8,7 @@ export default function NewRequest({ onSubmit, onCancel }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const A = '#E50071', AH = '#C70060'
+  const A = '#E50071'
   const INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
 
@@ -17,6 +18,7 @@ export default function NewRequest({ onSubmit, onCancel }) {
     try {
       const submitted = await onSubmit(title.trim(), desc.trim())
       if (!submitted) setError('Не удалось отправить вопрос. Попробуйте ещё раз.')
+      return Boolean(submitted)
     } finally {
       setLoading(false)
     }
@@ -48,8 +50,8 @@ export default function NewRequest({ onSubmit, onCancel }) {
         {/* Title */}
         <div style={{ marginBottom: 22 }}>
           <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>О чём речь</label>
-          <input type="text" value={title} onChange={e => { setTitle(e.target.value); setError('') }}
-            placeholder="Например: не проводится документ в 1С"
+          <CyclingPlaceholderInput type="text" value={title} onChange={e => { setTitle(e.target.value); setError('') }}
+            placeholders={['Опишите проблему в 1С', 'Например: не проводится документ в 1С', 'Укажите, что ожидали увидеть']}
             style={{ ...inputBase, borderColor: error ? A : BD }}
             onFocus={e => { e.target.style.borderColor = A; e.target.style.boxShadow = '0 0 0 4px rgba(229,0,113,.1)' }}
             onBlur={e => { e.target.style.borderColor = error ? A : BD; e.target.style.boxShadow = 'none' }} />
@@ -71,12 +73,11 @@ export default function NewRequest({ onSubmit, onCancel }) {
           <button onClick={onCancel} style={{ background: 'transparent', color: M, border: 'none', padding: '0 12px', height: 44, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
             Отмена
           </button>
-          <button onClick={handleSubmit} disabled={loading}
+          <StatefulButton onAction={handleSubmit} disabled={loading} loadingText="Создаём…" successText="Обращение создано"
             style={{ background: loading ? S2 : A, color: '#fff', border: 'none', padding: '0 26px', height: 50, fontSize: 15, fontWeight: 600, borderRadius: 10, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'all .2s', boxShadow: loading ? 'none' : '0 4px 14px rgba(229,0,113,.2)' }}
-            onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = AH; e.currentTarget.style.boxShadow = '0 6px 20px rgba(229,0,113,.3)' } }}
-            onMouseLeave={e => { if (!loading) { e.currentTarget.style.background = A; e.currentTarget.style.boxShadow = '0 4px 14px rgba(229,0,113,.2)' } }}>
-            <MessageCirclePlus size={18} /> {loading ? 'Отправка…' : 'Просто спросить'}
-          </button>
+            >
+            <MessageCirclePlus size={18} /> Просто спросить
+          </StatefulButton>
         </div>
       </div>
     </div>

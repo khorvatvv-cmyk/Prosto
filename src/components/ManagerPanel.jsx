@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowLeft, RefreshCw, Building2, ClipboardList, Check, X, MessageCircle, Megaphone, Send } from 'lucide-react'
 import { managerApi, chatApi, campaignApi } from '../api.js'
+import { AnimatedTabs, GlowingCard, HoverGroup, HoverItem, PrimaryGlowButton, StatefulButton } from './ui/AceternityEffects.jsx'
 
 const A = '#E50071'
 const INK = '#18181B'
@@ -503,11 +504,11 @@ export default function ManagerPanel({ user, showToast }) {
   const handleCreateCampaign = async (launch = false) => {
     if (!campaignForm.title.trim() || !campaignForm.full_text.trim()) {
       showToast('Заполните обязательные поля: название и полный текст')
-      return
+      return false
     }
     if (campaignForm.target_mode === 'selected' && campaignForm.target_org_ids.length === 0) {
       showToast('Выберите хотя бы одну организацию')
-      return
+      return false
     }
     setCreatingCampaign(true)
     try {
@@ -524,8 +525,10 @@ export default function ManagerPanel({ user, showToast }) {
       setCampaignForm(EMPTY_CAMPAIGN_FORM)
       await loadCampaigns()
       showToast(launch ? `Акция запущена. Получателей: ${delivered}` : 'Акция сохранена в черновиках')
+      return true
     } catch (e) {
       showToast(e.message || 'Не удалось создать акцию')
+      return false
     } finally {
       setCreatingCampaign(false)
     }
@@ -769,31 +772,28 @@ export default function ManagerPanel({ user, showToast }) {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 2, marginBottom: 20, padding: 4, background: S2, borderRadius: 10, width: 'fit-content', flexWrap: 'wrap' }}>
-        {[
+      <AnimatedTabs
+        tabs={[
           { id: 'dashboard', label: 'Сводка' },
           { id: 'clients', label: 'Клиенты' },
           { id: 'tasks', label: 'Задачи' },
           { id: 'chats', label: 'Чаты' },
           { id: 'campaigns', label: 'Акции и важное' },
-        ].map(t => (
-          <button key={t.id} onClick={() => goTo(t.id)}
-            style={{ fontSize: 13, fontWeight: 500, padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: section === t.id ? INK : M, background: section === t.id ? S : 'transparent' }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+        ]}
+        active={section}
+        onChange={goTo}
+        className="mb-5 max-w-full overflow-x-auto"
+        ariaLabel="Раздел АРМ менеджера"
+      />
 
       {section === 'dashboard' && stats && (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 24 }}>
             {METRICS.map(m => (
-              <div key={m.key} onClick={() => goTo(m.view, m.tab)} style={{ background: S, border: `1px solid ${BD}`, padding: 18, borderRadius: 10, cursor: 'pointer', transition: 'all .2s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = A; e.currentTarget.style.boxShadow = '0 4px 14px rgba(229,0,113,.08)' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = BD; e.currentTarget.style.boxShadow = 'none' }}>
+              <GlowingCard key={m.key} spotlight onClick={() => goTo(m.view, m.tab)} style={{ background: S, border: `1px solid ${BD}`, padding: 18, borderRadius: 10, cursor: 'pointer', transition: 'all .2s' }}>
                 <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>{m.label}</div>
                 <div style={{ fontSize: 28, fontWeight: 800, color: stats[m.key] > 0 ? A : INK }}>{stats[m.key] ?? 0}</div>
-              </div>
+              </GlowingCard>
             ))}
           </div>
         </div>
@@ -801,28 +801,20 @@ export default function ManagerPanel({ user, showToast }) {
 
       {section === 'clients' && (
         <div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-            {CLIENT_TABS.map(t => (
-              <button key={t.id} onClick={() => setClientsTab(t.id)}
-                style={{ fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 6, border: `1px solid ${clientsTab === t.id ? A : BD}`, cursor: 'pointer', fontFamily: 'inherit', color: clientsTab === t.id ? A : M, background: clientsTab === t.id ? '#FFF0F7' : S, transition: 'all .2s' }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <AnimatedTabs tabs={CLIENT_TABS} active={clientsTab} onChange={setClientsTab} className="mb-4 max-w-full overflow-x-auto" ariaLabel="Фильтр клиентов менеджера" />
           {orgs.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: M, fontSize: 14, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
               <Building2 size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
               <div>В этой категории клиентов нет</div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {orgs.map(org => {
+            <HoverGroup layoutId="manager-client-hover" className="flex flex-col gap-2">
+              {orgs.map((org, index) => {
                 const st = SERVICE_STATUS[org.service_status] || SERVICE_STATUS.unknown
                 return (
-                  <div key={org.id} onClick={() => openOrg(org.id)}
+                  <HoverItem key={org.id} index={index} glow onClick={() => openOrg(org.id)}
                     style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: S, border: `1px solid ${BD}`, borderRadius: 10, cursor: 'pointer', transition: 'all .2s' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = A }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = BD }}>
+                    >
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 15, fontWeight: 700, color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{org.name || 'Организация'}</div>
                       <div style={{ fontSize: 13, color: M }}>ИНН: {org.inn || '—'}</div>
@@ -832,24 +824,17 @@ export default function ManagerPanel({ user, showToast }) {
                       <span>Открыто: <b style={{ color: org.open_req > 0 ? A : INK }}>{org.open_req ?? 0}</b></span>
                     </div>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: S2, color: st.color, flexShrink: 0 }}>{st.label}</span>
-                  </div>
+                  </HoverItem>
                 )
               })}
-            </div>
+            </HoverGroup>
           )}
         </div>
       )}
 
       {section === 'tasks' && (
         <div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-            {TASK_TABS.map(t => (
-              <button key={t.id} onClick={() => setTasksStatus(t.id)}
-                style={{ fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 6, border: `1px solid ${tasksStatus === t.id ? A : BD}`, cursor: 'pointer', fontFamily: 'inherit', color: tasksStatus === t.id ? A : M, background: tasksStatus === t.id ? '#FFF0F7' : S, transition: 'all .2s' }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <AnimatedTabs tabs={TASK_TABS} active={tasksStatus} onChange={setTasksStatus} className="mb-4 max-w-full overflow-x-auto" ariaLabel="Фильтр задач менеджера" />
           {tasksLoading ? (
             <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка задач…</div>
           ) : tasks.length === 0 ? (
@@ -1081,10 +1066,10 @@ export default function ManagerPanel({ user, showToast }) {
               <div style={{ fontSize: 15, fontWeight: 700, color: INK }}>Акции для клиентов</div>
               <div style={{ fontSize: 12, color: M, marginTop: 3 }}>После запуска акция появится у получателей в разделе «Важное для вас».</div>
             </div>
-            <button onClick={openCampaignCreator}
+            <PrimaryGlowButton onClick={openCampaignCreator}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               <Megaphone size={14} /> Создать акцию
-            </button>
+            </PrimaryGlowButton>
           </div>
 
           {showCreateCampaign && (
@@ -1189,10 +1174,10 @@ export default function ManagerPanel({ user, showToast }) {
                   onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button onClick={() => handleCreateCampaign(true)} disabled={creatingCampaign}
+                <StatefulButton onAction={() => handleCreateCampaign(true)} loadingText="Запускаем…" successText="Акция запущена" disabled={creatingCampaign}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 20px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  <Megaphone size={14} /> {creatingCampaign ? 'Запуск…' : 'Создать и запустить'}
-                </button>
+                  <Megaphone size={14} /> Создать и запустить
+                </StatefulButton>
                 <button onClick={() => handleCreateCampaign(false)} disabled={creatingCampaign}
                   style={{ height: 36, padding: '0 16px', background: INK, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Сохранить черновик

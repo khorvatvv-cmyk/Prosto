@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Send, ClipboardList, UserCheck, FileQuestion, CheckCircle2, RotateCcw, Lock, Search, ArrowLeftRight, MessageCircle } from 'lucide-react'
 import { specialistApi } from '../api.js'
+import { AnimatedTabs, CompactTimeline, GlowingCard, HoverGroup, HoverItem, StatefulButton } from './ui/AceternityEffects.jsx'
 
 function formatMessageText(text) {
   if (!text) return null
@@ -152,8 +153,10 @@ export default function SpecialistPanel({ user, showToast }) {
       await specialistApi.take(selectedRequest)
       await refreshDetail()
       showToast('Обращение принято в работу')
+      return true
     } catch (e) {
       showToast(e.message || 'Не удалось взять обращение')
+      return false
     } finally {
       setActionLoading(false)
     }
@@ -289,15 +292,15 @@ export default function SpecialistPanel({ user, showToast }) {
           <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
             {/* LEFT — client info */}
             <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18 }}>
+              <GlowingCard style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 12 }}>Клиент</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: INK, marginBottom: 4 }}>{r.client_name || r.client_email || '—'}</div>
                 <div style={{ fontSize: 13, color: M, marginBottom: 2 }}>{r.client_email || '—'}</div>
                 <div style={{ fontSize: 13, color: M, marginBottom: 2 }}>ИНН: {r.client_inn || '—'}</div>
                 {r.client_organization && <div style={{ fontSize: 13, color: M }}>{r.client_organization}</div>}
-              </div>
+              </GlowingCard>
 
-              <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18 }}>
+              <GlowingCard style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 12 }}>Программа</div>
                 {[
                   { label: 'Вид деятельности', value: r.activity_type },
@@ -311,13 +314,13 @@ export default function SpecialistPanel({ user, showToast }) {
                     <span style={{ color: INK, textAlign: 'right', maxWidth: 160 }}>{value || '—'}</span>
                   </div>
                 ))}
-              </div>
+              </GlowingCard>
 
-              <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18 }}>
+              <GlowingCard style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Статус</div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: STATUS_COLORS[r.status] || INK }}>{STATUS_LABELS[r.status] || r.status}</span>
                 {r.specialist_name && <div style={{ fontSize: 12, color: M, marginTop: 4 }}>Специалист: {r.specialist_name}</div>}
-              </div>
+              </GlowingCard>
 
               {!isAssigned && !isDone && !isWaiting && (
                 <div style={{ fontSize: 13, color: M, padding: 14, background: S2, borderRadius: 8 }}>
@@ -328,11 +331,12 @@ export default function SpecialistPanel({ user, showToast }) {
 
             {/* RIGHT — messages and actions */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 16 }}>
+              <GlowingCard spotlight active style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 16 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: INK, marginBottom: 4 }}>{r.title}</h3>
                 <div style={{ fontSize: 13, color: M }}>Создано: {formatDate(r.created_at)}</div>
                 {r.description && <div style={{ fontSize: 14, color: INK, marginTop: 10, lineHeight: 1.6 }}>{r.description}</div>}
-              </div>
+                <CompactTimeline request={r} />
+              </GlowingCard>
 
               <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 16, maxHeight: 400, overflowY: 'auto' }}>
                 {messages.map((msg, i) => (
@@ -389,10 +393,10 @@ export default function SpecialistPanel({ user, showToast }) {
 
               {/* Actions */}
               {isWaiting && !isAssigned && (
-                <button onClick={handleTake} disabled={actionLoading}
+                <StatefulButton onAction={handleTake} loadingText="Принимаем…" successText="Принято" disabled={actionLoading}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 48, padding: '0 24px', background: actionLoading ? S2 : A, color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: actionLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                   <UserCheck size={18} /> Взять в работу
-                </button>
+                </StatefulButton>
               )}
 
               {canAct && (
@@ -495,11 +499,10 @@ export default function SpecialistPanel({ user, showToast }) {
     )
   }
 
-  const renderItem = (r, onClick) => (
-    <div key={r.id} onClick={onClick}
+  const renderItem = (r, onClick, index) => (
+    <HoverItem key={r.id} index={index} glow onClick={onClick}
       style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 16, cursor: 'pointer', transition: 'all .2s', marginBottom: 8 }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = A }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = BD }}>
+      >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: INK, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
@@ -515,7 +518,7 @@ export default function SpecialistPanel({ user, showToast }) {
         {r.config_type && <span>{r.config_type}</span>}
         <span>{formatDate(r.created_at)}</span>
       </div>
-    </div>
+    </HoverItem>
   )
 
   return (
@@ -530,25 +533,17 @@ export default function SpecialistPanel({ user, showToast }) {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 2, marginBottom: 20, padding: 4, background: S2, borderRadius: 10, width: 'fit-content' }}>
-        <button onClick={() => setTab('queue')} style={{ fontSize: 13, fontWeight: 500, padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: tab === 'queue' ? INK : M, background: tab === 'queue' ? S : 'transparent' }}>
-          Общая очередь
-        </button>
-        <button onClick={() => setTab('my')} style={{ fontSize: 13, fontWeight: 500, padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: tab === 'my' ? INK : M, background: tab === 'my' ? S : 'transparent' }}>
-          Мои обращения {myRequests.length > 0 && `(${myRequests.length})`}
-        </button>
-      </div>
+      <AnimatedTabs
+        tabs={[{ id: 'queue', label: 'Общая очередь' }, { id: 'my', label: `Мои обращения${myRequests.length > 0 ? ` (${myRequests.length})` : ''}` }]}
+        active={tab}
+        onChange={setTab}
+        className="mb-5"
+        ariaLabel="Раздел L1"
+      />
 
       {tab === 'queue' && (
         <div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-            {FILTERS.map(f => (
-              <button key={f.id} onClick={() => setFilter(f.id)}
-                style={{ fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 6, border: `1px solid ${filter === f.id ? A : BD}`, cursor: 'pointer', fontFamily: 'inherit', color: filter === f.id ? A : M, background: filter === f.id ? '#FFF0F7' : S, transition: 'all .2s' }}>
-                {f.label}
-              </button>
-            ))}
-          </div>
+          <AnimatedTabs tabs={FILTERS} active={filter} onChange={setFilter} className="mb-4 max-w-full overflow-x-auto" ariaLabel="Фильтр очереди L1" />
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <input type="text" value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSearch() }}
@@ -567,7 +562,9 @@ export default function SpecialistPanel({ user, showToast }) {
               <div>Нет обращений в этой категории</div>
             </div>
           ) : (
-            queue.map(r => renderItem(r, () => openRequest(r.id)))
+            <HoverGroup layoutId="l1-queue-hover">
+              {queue.map((r, index) => renderItem(r, () => openRequest(r.id), index))}
+            </HoverGroup>
           )}
         </div>
       )}
@@ -580,7 +577,9 @@ export default function SpecialistPanel({ user, showToast }) {
               <div>Нет обращений, назначенных на вас</div>
             </div>
           ) : (
-            myRequests.map(r => renderItem(r, () => openRequest(r.id)))
+            <HoverGroup layoutId="l1-my-hover">
+              {myRequests.map((r, index) => renderItem(r, () => openRequest(r.id), index))}
+            </HoverGroup>
           )}
         </div>
       )}

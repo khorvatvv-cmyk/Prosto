@@ -76,6 +76,12 @@ export default function AdminPanel() {
   ]
 
   const formatDate = (d) => d ? new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
+  const server = stats?.server || {}
+  const formatUptime = (seconds = 0) => {
+    const minutes = Math.floor(seconds / 60)
+    const hours = Math.floor(minutes / 60)
+    return hours > 0 ? `${hours} ч ${minutes % 60} мин` : `${minutes} мин`
+  }
 
   return (
     <div style={{ animation: 'fadeUp .4s ease both' }}>
@@ -125,15 +131,31 @@ export default function AdminPanel() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 14, color: M }}>Backend</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#22c55e' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }}></span> Онлайн
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: server.status === 'ok' ? '#22c55e' : A }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: server.status === 'ok' ? '#22c55e' : A }}></span>
+                  {server.status === 'ok' ? 'Онлайн' : 'Нет данных'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 14, color: M }}>База данных</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: server.database === 'ok' ? '#22c55e' : A }}>
+                  {server.database === 'ok' ? 'Доступна' : 'Нет данных'}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 14, color: M }}>Ассистент ПРОСТО</span>
-                <button onClick={() => setTab('test')} style={{ fontSize: 13, fontWeight: 600, color: A, background: 'none', border: 'none', cursor: 'pointer' }}>
-                  Проверить →
-                </button>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: server.assistant === 'configured' ? '#22c55e' : A }}>
+                    {server.assistant === 'configured' ? 'Подключён' : 'Не настроен'}
+                  </span>
+                  <button onClick={() => setTab('test')} style={{ fontSize: 13, fontWeight: 600, color: A, background: 'none', border: 'none', cursor: 'pointer' }}>
+                    Проверить →
+                  </button>
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 14, color: M }}>Время работы после запуска</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: INK }}>{formatUptime(server.uptime)}</span>
               </div>
             </div>
           </div>
@@ -193,30 +215,40 @@ export default function AdminPanel() {
 
       {/* === ORGANIZATIONS === */}
       {tab === 'orgs' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {orgs.map((org, i) => (
-            <div key={i} style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18, boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: INK }}>ИНН: {org.inn}</span>
-                  <span style={{ fontSize: 13, color: M, marginLeft: 12 }}>{org.users.length} польз.</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: org.requestCount > 0 ? A : M }}>
-                    {org.requestCount > 0 ? `${org.requestCount} вопросов` : 'Не обращались'}
-                  </span>
-                  {org.requestCount > 0 && <span style={{ width: 8, height: 8, borderRadius: '50%', background: A }}></span>}
-                  {org.requestCount === 0 && <span style={{ width: 8, height: 8, borderRadius: '50%', background: L }}></span>}
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {[
+            { title: 'Обращались', items: orgs.filter(org => org.requestCount > 0), color: A },
+            { title: 'Ещё не обращались', items: orgs.filter(org => org.requestCount === 0), color: M },
+          ].map(group => (
+            <section key={group.title}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: INK }}>{group.title}</h3>
+                <span style={{ fontSize: 12, fontWeight: 700, color: group.color, background: S2, padding: '2px 8px', borderRadius: 999 }}>{group.items.length}</span>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {org.users.map(u => (
-                  <span key={u.id} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, background: S2, color: M }}>
-                    {u.name || u.email}
-                  </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {group.items.map(org => (
+                  <div key={org.inn} style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18, boxShadow: '0 1px 2px rgba(0,0,0,.03)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <div>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: INK }}>ИНН: {org.inn}</span>
+                        <span style={{ fontSize: 13, color: M, marginLeft: 12 }}>{org.users.length} польз.</span>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: org.requestCount > 0 ? A : M }}>
+                        {org.requestCount > 0 ? `${org.requestCount} вопросов` : 'Нет вопросов'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {org.users.map(u => (
+                        <span key={u.id} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, background: S2, color: M }}>
+                          {u.name || u.email}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 ))}
+                {group.items.length === 0 && <div style={{ padding: 16, background: S, border: `1px dashed ${BD}`, borderRadius: 10, color: M, fontSize: 13 }}>В этой группе пока нет организаций</div>}
               </div>
-            </div>
+            </section>
           ))}
           {orgs.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: M }}>Нет организаций</div>}
         </div>

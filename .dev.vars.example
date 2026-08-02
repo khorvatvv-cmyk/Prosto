@@ -1,0 +1,7 @@
+JWT_SECRET=replace-with-a-long-random-secret
+PASSWORD_PEPPER=replace-with-another-long-random-secret
+ASSISTANT_ID=replace-with-assistant-id
+ASSISTANT_API_KEY=replace-with-assistant-api-key
+ASSISTANT_BASE_URL=https://portarius.1bitai.ru
+ADMIN_EMAIL=
+ADMIN_PASSWORD=

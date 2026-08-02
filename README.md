@@ -5,8 +5,9 @@
 ## Состав
 
 - React + Vite — пользовательский интерфейс.
-- Express — API, авторизация и публикация собранного интерфейса.
-- SQLite через sql.js — пользователи, обращения и сообщения.
+- Cloudflare Worker — основной API и публикация собранного интерфейса.
+- Cloudflare D1 — постоянное хранение пользователей, обращений и сообщений.
+- Express + SQLite через sql.js — локальный и резервный Node.js-вариант.
 - Portarius Assistant API — автоматические ответы и сохранение контекста диалога по `thread_id`.
 
 ## Локальный запуск
@@ -22,8 +23,18 @@
 
 - `npm run lint`
 - `npm test`
+- `npm run test:worker`
 - `npm run build`
 
-## Render
+## Cloudflare Workers + D1
+
+1. Создайте D1-базу `prosto-db` и укажите полученный `database_id` в `wrangler.jsonc`.
+2. Примените схему: `npm run cf:migrate:remote`.
+3. Добавьте секреты `JWT_SECRET`, `PASSWORD_PEPPER`, `ASSISTANT_ID` и `ASSISTANT_API_KEY` через `wrangler secret put`.
+4. Выполните `npm run cf:deploy`.
+
+Локальная D1-схема применяется командой `npm run cf:migrate:local`. Реальные секреты в `.dev.vars` и репозиторий не добавляются.
+
+## Резервный Render-деплой
 
 `render.yaml` собирает интерфейс и сервер как один web service. Значения `JWT_SECRET`, `ASSISTANT_ID` и `ASSISTANT_API_KEY` задаются только в переменных окружения Render.

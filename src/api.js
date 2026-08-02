@@ -108,6 +108,8 @@ export const requestsApi = {
   create: (title, description) =>
     api('/requests', { method: 'POST', body: JSON.stringify({ title, description }) }),
   get: (id) => api(`/requests/${id}`),
+  requestAssistant: (id) =>
+    api(`/requests/${id}/assistant`, { method: 'POST' }, { maxAttempts: 1, timeoutMs: 90000 }),
   sendMessage: (id, text) =>
     api(`/requests/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }) }),
   evaluate: (id, helped) =>

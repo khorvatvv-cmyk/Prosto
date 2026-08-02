@@ -128,20 +128,6 @@ async function updateRequest(env, id, updates) {
   return getAnyRequest(env, id)
 }
 
-async function answerInBackground(env, requestId, message, threadId) {
-  try {
-    const result = await askAssistant(message, threadId, env)
-    await addMessage(env, requestId, 'assistant', result.text)
-    await updateRequest(env, requestId, {
-      ...(result.threadId ? { assistant_thread_id: result.threadId } : {}),
-      ...(!result.available ? { status: 'waiting', level: 'l1' } : {}),
-    })
-  } catch (error) {
-    console.error(`Assistant background task failed: ${error.message}`)
-    await updateRequest(env, requestId, { status: 'waiting', level: 'l1' })
-  }
-}
-
 async function createAdminOnFirstLogin(env, email, password) {
   const adminEmail = normalizeEmail(env.ADMIN_EMAIL)
   const configuredPassword = String(env.ADMIN_PASSWORD || '')
@@ -220,7 +206,7 @@ async function handleRequestsList(request, env) {
   return json({ requests: result.results || [] })
 }
 
-async function handleRequestCreate(request, env, context) {
+async function handleRequestCreate(request, env) {
   const user = await authenticate(request, env)
   const body = await requestBody(request)
   const title = String(body.title || '').trim()
@@ -235,8 +221,31 @@ async function handleRequestCreate(request, env, context) {
   const requestId = created.meta.last_row_id
   const text = description || title
   await addMessage(env, requestId, 'user', text)
-  context.waitUntil(answerInBackground(env, requestId, text, null))
   return json({ request: await getRequestForUser(env, requestId, user.id) }, 201)
+}
+
+async function handleInitialAssistantAnswer(request, env, id) {
+  const user = await authenticate(request, env)
+  const item = await getRequestForUser(env, id, user.id)
+  if (!item) throw httpError(404, 'Вопрос не найден')
+
+  const messages = await getMessages(env, id)
+  const existingAnswer = messages.find(message => message.sender === 'assistant')
+  if (existingAnswer) {
+    return json({ message: existingAnswer, request: item, reused: true })
+  }
+  if (item.status !== 'open' || item.level !== 'l0') {
+    return json({ message: null, request: item, reused: true })
+  }
+
+  const text = String(item.description || item.title || '').trim()
+  const result = await askAssistant(text, item.assistant_thread_id, env)
+  const assistantMessage = await addMessage(env, id, 'assistant', result.text)
+  const updatedRequest = await updateRequest(env, id, {
+    ...(result.threadId ? { assistant_thread_id: result.threadId } : {}),
+    ...(!result.available ? { status: 'waiting', level: 'l1' } : {}),
+  })
+  return json({ message: assistantMessage, request: updatedRequest, available: result.available })
 }
 
 async function handleManagerMessage(request, env) {
@@ -435,7 +444,7 @@ async function handleAdminAssistantTest(request, env) {
   return json(await askAssistant(message, null, env))
 }
 
-async function handleApi(request, env, context) {
+async function handleApi(request, env) {
   const url = new URL(request.url)
   const path = url.pathname.slice(API_PREFIX.length) || '/'
   const method = request.method.toUpperCase()
@@ -458,13 +467,15 @@ async function handleApi(request, env, context) {
     return json({ user: publicUser(user) })
   }
   if (method === 'GET' && path === '/requests') return handleRequestsList(request, env)
-  if (method === 'POST' && path === '/requests') return handleRequestCreate(request, env, context)
+  if (method === 'POST' && path === '/requests') return handleRequestCreate(request, env)
   if (method === 'POST' && path === '/manager/messages') return handleManagerMessage(request, env)
 
   let match = path.match(/^\/requests\/(\d+)$/)
   if (match && method === 'GET') return handleRequestDetail(request, env, Number(match[1]))
   match = path.match(/^\/requests\/(\d+)\/messages$/)
   if (match && method === 'POST') return handleRequestMessage(request, env, Number(match[1]))
+  match = path.match(/^\/requests\/(\d+)\/assistant$/)
+  if (match && method === 'POST') return handleInitialAssistantAnswer(request, env, Number(match[1]))
   match = path.match(/^\/requests\/(\d+)\/evaluate$/)
   if (match && method === 'POST') return handleRequestEvaluation(request, env, Number(match[1]))
 
@@ -484,12 +495,12 @@ async function handleApi(request, env, context) {
 }
 
 export default {
-  async fetch(request, env, context) {
+  async fetch(request, env) {
     const url = new URL(request.url)
     if (!url.pathname.startsWith(API_PREFIX)) return env.ASSETS.fetch(request)
     try {
       if (!env.DB) throw new Error('D1 binding DB is missing')
-      return await handleApi(request, env, context)
+      return await handleApi(request, env)
     } catch (error) {
       return errorResponse(error)
     }

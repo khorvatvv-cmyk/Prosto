@@ -58,9 +58,10 @@ export default function App() {
 
   const submitRequest = async (title, desc) => {
     try {
-      await requestsApi.create(title, desc)
-      await loadRequests()
-      goTo('dashboard')
+      const data = await requestsApi.create(title, desc)
+      setRequests(prev => [data.request, ...prev.filter(item => item.id !== data.request.id)])
+      setCurrentRequestId(data.request.id)
+      setPage('detail')
       showToast('Вопрос получили. Ищем решение…')
       return true
     } catch (e) {

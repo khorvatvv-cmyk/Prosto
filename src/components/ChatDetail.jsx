@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from 'react'
 import { ArrowLeft, Phone, Send, CheckCircle2, AlertCircle } from 'lucide-react'
 import { requestsApi } from '../api.js'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate, onNavigate, showToast }) {
   const [messages, setMessages] = useState([])
@@ -10,6 +10,9 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [requestState, setRequestState] = useState(request)
+  const assistantRequested = useRef(false)
+  const showToastRef = useRef(showToast)
+  showToastRef.current = showToast
   const activeRequest = requestState || request
 
   const A = '#E50071'
@@ -22,7 +25,21 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
       const data = await requestsApi.get(request.id)
       setMessages(data.messages || [])
       setRequestState(data.request)
-      if (data.messages?.some(m => m.sender === 'assistant') || data.request?.status !== 'open' || data.request?.level !== 'l0') {
+      const hasAnswer = data.messages?.some(m => m.sender === 'assistant')
+      const shouldRequestAnswer = !hasAnswer && data.request?.status === 'open' && data.request?.level === 'l0'
+      if (shouldRequestAnswer && !assistantRequested.current) {
+        assistantRequested.current = true
+        try {
+          const answer = await requestsApi.requestAssistant(request.id)
+          setMessages(answer.message ? [...(data.messages || []), answer.message] : (data.messages || []))
+          setRequestState(answer.request || data.request)
+          setPolling(false)
+        } catch (error) {
+          console.error('Assistant request error:', error)
+          setPolling(false)
+          showToastRef.current('Ассистент не ответил. Можно повторить запрос или подключить специалиста.')
+        }
+      } else if (hasAnswer || data.request?.status !== 'open' || data.request?.level !== 'l0') {
         setPolling(false)
       }
     } catch (e) {
@@ -37,6 +54,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     setPolling(true)
     setMessages([])
     setRequestState(request)
+    assistantRequested.current = false
     loadMessages()
   }, [request, loadMessages])
 
@@ -64,6 +82,12 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     } finally {
       setSending(false)
     }
+  }
+
+  const retryAssistant = () => {
+    assistantRequested.current = false
+    setPolling(true)
+    loadMessages()
   }
 
   const handleEvaluate = async (helped) => {
@@ -160,14 +184,25 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                 ))}
 
                 {/* Loading — waiting for assistant */}
-                {isL0 && !hasAssistantReply && !loading && (
+                {isL0 && !hasAssistantReply && !loading && polling && (
                   <div style={{ textAlign: 'center', padding: 20, color: M, fontSize: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both' }}></span>
                       <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both', animationDelay: '.2s' }}></span>
                       <span style={{ display: 'inline-block', width: 7, height: 7, background: A, borderRadius: '50%', animation: 'blink 1.4s infinite both', animationDelay: '.4s' }}></span>
                     </div>
-                    <div>Ассистент ПРОСТО ищет решение…</div>
+                    <div>Ассистент ПРОСТО анализирует задачу…</div>
+                    <div style={{ fontSize: 12, color: L }}>Сложный вопрос может занять до минуты</div>
+                  </div>
+                )}
+
+                {isL0 && !hasAssistantReply && !loading && !polling && (
+                  <div style={{ textAlign: 'center', padding: 20, color: M, fontSize: 14 }}>
+                    <div style={{ marginBottom: 10 }}>Ассистент не успел подготовить ответ.</div>
+                    <button onClick={retryAssistant}
+                      style={{ border: `1px solid ${BD}`, background: S, color: INK, padding: '9px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                      Повторить запрос
+                    </button>
                   </div>
                 )}
 

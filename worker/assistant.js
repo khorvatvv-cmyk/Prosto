@@ -30,7 +30,7 @@ export async function askAssistant(message, threadId, env) {
 
   const baseUrl = String(env.ASSISTANT_BASE_URL || 'https://portarius.1bitai.ru').replace(/\/$/, '')
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 45_000)
+  const timeout = setTimeout(() => controller.abort(), 75_000)
   try {
     const response = await fetch(`${baseUrl}/v1/assistants/${env.ASSISTANT_ID.trim()}/chat`, {
       method: 'POST',
@@ -65,4 +65,3 @@ export async function askAssistant(message, threadId, env) {
     clearTimeout(timeout)
   }
 }
-

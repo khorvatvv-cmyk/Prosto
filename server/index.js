@@ -17,6 +17,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const app = express()
 const PORT = Number(process.env.PORT) || 3001
 const JWT_SECRET = process.env.JWT_SECRET?.trim() || 'local-development-only-secret'
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase()
 const isProduction = process.env.NODE_ENV === 'production'
 const startedAt = new Date()
 
@@ -115,7 +116,13 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(409).json({ error: 'Пользователь с таким email уже существует' })
   }
 
-  createUser({ email, password, inn, name })
+  createUser({
+    email,
+    password,
+    inn,
+    name,
+    role: ADMIN_EMAIL && email === ADMIN_EMAIL ? 'admin' : 'user',
+  })
   const user = findUserByEmail(email)
   if (!user) return res.status(500).json({ error: 'Ошибка создания пользователя' })
 

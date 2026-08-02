@@ -96,10 +96,13 @@ function executeAndGetId(sql, params = []) {
 }
 
 // === USER FUNCTIONS ===
-export function createUser({ email, password, inn, name }) {
+export function createUser({ email, password, inn, name, role = 'user' }) {
   const hash = bcrypt.hashSync(password, 10)
-  const id = executeAndGetId('INSERT INTO users (email, password, inn, name) VALUES (?, ?, ?, ?)', [email, hash, inn, name])
-  return { id, email, inn, name }
+  const id = executeAndGetId(
+    'INSERT INTO users (email, password, inn, name, role) VALUES (?, ?, ?, ?, ?)',
+    [email, hash, inn, name, role],
+  )
+  return { id, email, inn, name, role }
 }
 
 export function findUserByEmail(email) {

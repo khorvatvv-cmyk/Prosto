@@ -9,6 +9,7 @@ import Important from './components/Important.jsx'
 import Profile from './components/Profile.jsx'
 import Notifications from './components/Notifications.jsx'
 import ManagerModal from './components/ManagerModal.jsx'
+import ManagerChat from './components/ManagerChat.jsx'
 import Toast from './components/Toast.jsx'
 import Header from './components/Header.jsx'
 import Sidebar from './components/Sidebar.jsx'
@@ -179,7 +180,8 @@ export default function App() {
         </main>
       </div>
       <MobileTabbar onNavigate={goTo} page={page} user={user} />
-      {managerOpen && <ManagerModal onClose={() => setManagerOpen(false)} onSend={messageManager} />}
+      {managerOpen && user?.role === 'user' && <ManagerChat user={user} onClose={() => setManagerOpen(false)} showToast={showToast} />}
+      {managerOpen && user?.role !== 'user' && <ManagerModal onClose={() => setManagerOpen(false)} onSend={messageManager} />}
       {toast && <Toast message={toast} />}
     </div>
   )

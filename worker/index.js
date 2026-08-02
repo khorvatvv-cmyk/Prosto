@@ -1015,7 +1015,7 @@ async function handleClientChatList(request, env) {
   const user = await authenticate(request, env)
   if (user.role === 'user') {
     const org = await getOrgForUser(env, user.id)
-    if (!org) return json({ conversations: [] })
+    if (!org) return json({ conversations: [], org: null })
     const conv = await env.DB.prepare(`
       SELECT c.*, m.name AS manager_name, m.email AS manager_email,
         (SELECT COUNT(*) FROM manager_messages WHERE conversation_id = c.id AND is_read = 0 AND sender_id != ?) AS unread
@@ -1024,16 +1024,33 @@ async function handleClientChatList(request, env) {
     `).bind(user.id, user.id).all()
     return json({ conversations: conv.results || [], org })
   }
-  const result = await env.DB.prepare(`
-    SELECT c.*, o.name AS org_name, o.inn AS org_inn, u.name AS client_name, u.email AS client_email,
-      (SELECT COUNT(*) FROM manager_messages WHERE conversation_id = c.id AND is_read = 0 AND sender_id != ?) AS unread
-    FROM manager_conversations c
-    JOIN organizations o ON c.organization_id = o.id
-    JOIN users u ON c.client_user_id = u.id
-    WHERE c.manager_id = ? OR c.manager_id IS NULL
-    ORDER BY c.created_at DESC
-  `).bind(user.id, user.id).all()
-  return json({ conversations: result.results || [] })
+  if (user.role === 'manager') {
+    const result = await env.DB.prepare(`
+      SELECT c.*, o.name AS org_name, o.inn AS org_inn, u.name AS client_name, u.email AS client_email,
+        (SELECT COUNT(*) FROM manager_messages WHERE conversation_id = c.id AND is_read = 0 AND sender_id != ?) AS unread
+      FROM manager_conversations c
+      JOIN organizations o ON c.organization_id = o.id
+      JOIN users u ON c.client_user_id = u.id
+      WHERE c.manager_id = ?
+      ORDER BY c.created_at DESC
+    `).bind(user.id, user.id).all()
+    return json({ conversations: result.results || [] })
+  }
+  if (user.role === 'rof' || user.role === 'admin') {
+    const result = await env.DB.prepare(`
+      SELECT c.*, o.name AS org_name, o.inn AS org_inn, u.name AS client_name, u.email AS client_email,
+        m.name AS manager_name,
+        (SELECT COUNT(*) FROM manager_messages WHERE conversation_id = c.id AND is_read = 0 AND sender_id != ?) AS unread
+      FROM manager_conversations c
+      JOIN organizations o ON c.organization_id = o.id
+      JOIN users u ON c.client_user_id = u.id
+      LEFT JOIN users m ON c.manager_id = m.id
+      WHERE c.manager_id IS NULL OR c.manager_id = ?
+      ORDER BY c.created_at DESC
+    `).bind(user.id, user.id).all()
+    return json({ conversations: result.results || [] })
+  }
+  return json({ conversations: [] })
 }
 
 async function handleClientChatMessages(request, env, convId) {
@@ -1042,8 +1059,15 @@ async function handleClientChatMessages(request, env, convId) {
   if (!conv) throw httpError(404, 'Чат не найден')
   if (user.role === 'user' && conv.client_user_id !== user.id) throw httpError(403, 'Нет доступа')
   if (user.role === 'manager' && conv.manager_id !== user.id) throw httpError(403, 'Нет доступа')
-  const result = await env.DB.prepare('SELECT * FROM manager_messages WHERE conversation_id = ? ORDER BY created_at ASC, id ASC').bind(convId).all()
+  const result = await env.DB.prepare(`
+    SELECT m.*, u.name AS sender_name
+    FROM manager_messages m LEFT JOIN users u ON m.sender_id = u.id
+    WHERE m.conversation_id = ? ORDER BY m.created_at ASC, m.id ASC
+  `).bind(convId).all()
   if (user.role === 'user') {
+    await env.DB.prepare('UPDATE manager_messages SET is_read = 1, read_at = CURRENT_TIMESTAMP WHERE conversation_id = ? AND sender_id != ? AND is_read = 0').bind(convId, user.id).run()
+  }
+  if (user.role === 'manager' || user.role === 'rof' || user.role === 'admin') {
     await env.DB.prepare('UPDATE manager_messages SET is_read = 1, read_at = CURRENT_TIMESTAMP WHERE conversation_id = ? AND sender_id != ? AND is_read = 0').bind(convId, user.id).run()
   }
   return json({ conversation: conv, messages: result.results || [] })
@@ -1067,6 +1091,11 @@ async function handleClientChatSend(request, env) {
     const conv = await env.DB.prepare('SELECT * FROM manager_conversations WHERE id = ?').bind(convId).first()
     if (!conv) throw httpError(404, 'Чат не найден')
     if (user.role === 'manager' && conv.manager_id !== user.id) throw httpError(403, 'Нет доступа')
+    if (user.role === 'rof' || user.role === 'admin') {
+      if (conv.manager_id && conv.manager_id !== user.id && user.role !== 'admin') {
+        throw httpError(403, 'У организации есть менеджер')
+      }
+    }
   }
 
   const result = await env.DB.prepare('INSERT INTO manager_messages (conversation_id, sender_id, text) VALUES (?, ?, ?)').bind(convId, user.id, text).run()

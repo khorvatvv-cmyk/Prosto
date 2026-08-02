@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, RefreshCw, Building2, ClipboardList, Check, X } from 'lucide-react'
-import { managerApi } from '../api.js'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ArrowLeft, RefreshCw, Building2, ClipboardList, Check, X, MessageCircle, Megaphone, Send } from 'lucide-react'
+import { managerApi, chatApi, campaignApi } from '../api.js'
 
 const A = '#E50071'
 const INK = '#18181B'
@@ -43,6 +43,12 @@ const PRIORITY = {
   critical: { label: 'Критичная', color: A },
 }
 
+const CAMPAIGN_STATUS = {
+  draft: { label: 'Черновик', color: M },
+  active: { label: 'Активна', color: '#16A34A' },
+  completed: { label: 'Завершена', color: '#2563EB' },
+}
+
 const METRICS = [
   { key: 'myClients', label: 'Мои клиенты', view: 'clients', tab: 'mine' },
   { key: 'unassigned', label: 'Без менеджера', view: 'clients', tab: 'unassigned' },
@@ -81,7 +87,32 @@ const STATUS_OPTIONS = [
   { id: 'no_regular_contract', label: 'Нет договора' },
 ]
 
+const CAMPAIGN_CATEGORIES = [
+  { id: 'info', label: 'Информационная' },
+  { id: 'promo', label: 'Промо' },
+  { id: 'service', label: 'Сервисная' },
+]
+
+const CAMPAIGN_ACTIONS = [
+  { id: 'none', label: 'Без действия' },
+  { id: 'manager', label: 'Связаться с менеджером' },
+  { id: 'connect', label: 'Подключиться' },
+  { id: 'signup', label: 'Зарегистрироваться' },
+]
+
+const TARGET_STATUSES = [
+  { id: 'all', label: 'Все' },
+  { id: 'its_prof', label: '1С:ПРОФ' },
+  { id: 'fresh_prof', label: '1С:ПРОФ (недавно)' },
+  { id: 'other_regular', label: 'Другая ИТС' },
+  { id: 'no_regular_contract', label: 'Нет договора' },
+]
+
 const formatDate = (d) => d ? new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
+
+const formatFullDate = (d) => d ? new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+
+const labelStyle = { fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 12 }
 
 export default function ManagerPanel({ user, showToast }) {
   const [section, setSection] = useState('dashboard')
@@ -98,6 +129,30 @@ export default function ManagerPanel({ user, showToast }) {
   const [tasksLoading, setTasksLoading] = useState(false)
   const [taskResult, setTaskResult] = useState({})
   const [busy, setBusy] = useState({})
+
+  const [conversations, setConversations] = useState([])
+  const [convosLoading, setConvosLoading] = useState(false)
+  const [activeConvId, setActiveConvId] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [msgLoading, setMsgLoading] = useState(false)
+  const [msgText, setMsgText] = useState('')
+  const [sendingMsg, setSendingMsg] = useState(false)
+  const pollRef = useRef(null)
+
+  const [campaigns, setCampaigns] = useState([])
+  const [campsLoading, setCampsLoading] = useState(false)
+  const [showCreateCampaign, setShowCreateCampaign] = useState(false)
+  const [campaignForm, setCampaignForm] = useState({ title: '', subject: '', short_text: '', full_text: '', category: 'info', action_type: 'none', action_label: '', start_date: '', end_date: '', target_status: 'all' })
+  const [creatingCampaign, setCreatingCampaign] = useState(false)
+  const [activatingId, setActivatingId] = useState(null)
+  const [activationResult, setActivationResult] = useState({})
+  const [deliveriesFor, setDeliveriesFor] = useState(null)
+  const [deliveries, setDeliveries] = useState([])
+  const [deliveriesLoading, setDeliveriesLoading] = useState(false)
+
+  const [showClientMessage, setShowClientMessage] = useState(false)
+  const [clientMsgText, setClientMsgText] = useState('')
+  const [sendingClientMsg, setSendingClientMsg] = useState(false)
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -132,6 +187,55 @@ export default function ManagerPanel({ user, showToast }) {
     }
   }, [showToast])
 
+  const loadConversations = useCallback(async () => {
+    setConvosLoading(true)
+    try {
+      const data = await chatApi.list()
+      setConversations(data.conversations || [])
+    } catch (e) {
+      showToast('Ошибка загрузки чатов: ' + e.message)
+    } finally {
+      setConvosLoading(false)
+    }
+  }, [showToast])
+
+  const loadMessages = useCallback(async (convId) => {
+    if (!convId) return
+    setMsgLoading(true)
+    try {
+      const data = await chatApi.messages(convId)
+      setMessages(data.messages || [])
+    } catch (e) {
+      showToast('Ошибка загрузки сообщений: ' + e.message)
+    } finally {
+      setMsgLoading(false)
+    }
+  }, [showToast])
+
+  const loadCampaigns = useCallback(async () => {
+    setCampsLoading(true)
+    try {
+      const data = await campaignApi.list()
+      setCampaigns(data.campaigns || [])
+    } catch (e) {
+      showToast('Ошибка загрузки кампаний: ' + e.message)
+    } finally {
+      setCampsLoading(false)
+    }
+  }, [showToast])
+
+  const loadDeliveries = useCallback(async (campaignId) => {
+    setDeliveriesLoading(true)
+    try {
+      const data = await campaignApi.deliveries(campaignId)
+      setDeliveries(data.deliveries || [])
+    } catch (e) {
+      showToast('Ошибка загрузки доставок: ' + e.message)
+    } finally {
+      setDeliveriesLoading(false)
+    }
+  }, [showToast])
+
   useEffect(() => {
     loadDashboard()
   }, [loadDashboard])
@@ -140,7 +244,25 @@ export default function ManagerPanel({ user, showToast }) {
     if (section === 'dashboard') loadDashboard()
     if (section === 'clients') loadClients(clientsTab)
     if (section === 'tasks') loadTasks(tasksStatus)
-  }, [section, clientsTab, tasksStatus, loadDashboard, loadClients, loadTasks])
+    if (section === 'chats') loadConversations()
+    if (section === 'campaigns') loadCampaigns()
+  }, [section, clientsTab, tasksStatus, loadDashboard, loadClients, loadTasks, loadConversations, loadCampaigns])
+
+  useEffect(() => {
+    if (activeConvId) {
+      loadMessages(activeConvId)
+      if (pollRef.current) clearInterval(pollRef.current)
+      pollRef.current = setInterval(() => {
+        loadMessages(activeConvId)
+      }, 5000)
+    } else {
+      if (pollRef.current) clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [activeConvId, loadMessages])
 
   const openOrg = async (id) => {
     setSelectedOrgId(id)
@@ -160,6 +282,8 @@ export default function ManagerPanel({ user, showToast }) {
   const backToClients = () => {
     setSelectedOrgId(null)
     setOrgDetail(null)
+    setShowClientMessage(false)
+    setClientMsgText('')
   }
 
   const goTo = (view, tab) => {
@@ -168,6 +292,11 @@ export default function ManagerPanel({ user, showToast }) {
       if (view === 'clients') setClientsTab(tab)
       if (view === 'tasks') setTasksStatus(tab)
     }
+    setActiveConvId(null)
+    setMessages([])
+    setMsgText('')
+    setShowCreateCampaign(false)
+    setDeliveriesFor(null)
   }
 
   const setBusyKey = (key, val) => setBusy(prev => ({ ...prev, [key]: val }))
@@ -235,6 +364,89 @@ export default function ManagerPanel({ user, showToast }) {
     setTaskResult(prev => ({ ...prev, [taskId]: { ...(prev[taskId] || {}), [key]: value } }))
   }
 
+  const handleSendMessage = async () => {
+    const text = msgText.trim()
+    if (!text || !activeConvId) return
+    setSendingMsg(true)
+    try {
+      await chatApi.send(text, activeConvId)
+      setMsgText('')
+      await loadMessages(activeConvId)
+    } catch (e) {
+      showToast(e.message || 'Не удалось отправить сообщение')
+    } finally {
+      setSendingMsg(false)
+    }
+  }
+
+  const handleSendClientMessage = async () => {
+    const text = clientMsgText.trim()
+    if (!text) return
+    setSendingClientMsg(true)
+    try {
+      await chatApi.send(text)
+      setClientMsgText('')
+      setShowClientMessage(false)
+      showToast('Сообщение отправлено')
+    } catch (e) {
+      showToast(e.message || 'Не удалось отправить сообщение')
+    } finally {
+      setSendingClientMsg(false)
+    }
+  }
+
+  const handleCampaignField = (key, value) => {
+    setCampaignForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  const handleCreateCampaign = async () => {
+    if (!campaignForm.title.trim() || !campaignForm.full_text.trim()) {
+      showToast('Заполните обязательные поля: название и полный текст')
+      return
+    }
+    setCreatingCampaign(true)
+    try {
+      const data = { ...campaignForm }
+      if (!data.start_date) delete data.start_date
+      if (!data.end_date) delete data.end_date
+      await campaignApi.create(data)
+      setShowCreateCampaign(false)
+      setCampaignForm({ title: '', subject: '', short_text: '', full_text: '', category: 'info', action_type: 'none', action_label: '', start_date: '', end_date: '', target_status: 'all' })
+      await loadCampaigns()
+      showToast('Кампания создана')
+    } catch (e) {
+      showToast(e.message || 'Не удалось создать кампанию')
+    } finally {
+      setCreatingCampaign(false)
+    }
+  }
+
+  const handleActivateCampaign = async (id) => {
+    setActivatingId(id)
+    setActivationResult(prev => ({ ...prev, [id]: null }))
+    try {
+      const data = await campaignApi.activate(id)
+      setActivationResult(prev => ({ ...prev, [id]: data }))
+      await loadCampaigns()
+    } catch (e) {
+      showToast(e.message || 'Не удалось активировать кампанию')
+    } finally {
+      setActivatingId(null)
+    }
+  }
+
+  const handleShowDeliveries = async (id) => {
+    setDeliveriesFor(id)
+    await loadDeliveries(id)
+  }
+
+  const handleKeyDown = (e, handler) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handler()
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка рабочей панели…</div>
   }
@@ -247,17 +459,17 @@ export default function ManagerPanel({ user, showToast }) {
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
         <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 12 }}>Организация</div>
+          <div style={labelStyle}>Организация</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: INK }}>{org.name || '—'}</div>
           <div style={{ fontSize: 13, color: M, marginTop: 4 }}>ИНН: {org.inn || '—'}</div>
         </div>
         <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 12 }}>Менеджер</div>
+          <div style={labelStyle}>Менеджер</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: INK }}>{org.manager_name || 'Не назначен'}</div>
           {org.manager_email && <div style={{ fontSize: 13, color: M, marginTop: 4 }}>{org.manager_email}</div>}
         </div>
         <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 18 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 12 }}>Статус обслуживания</div>
+          <div style={labelStyle}>Статус обслуживания</div>
           <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: S2, color: st.color }}>{st.label}</span>
           {canEdit && (
             <select
@@ -369,10 +581,35 @@ export default function ManagerPanel({ user, showToast }) {
           <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка организации…</div>
         ) : orgDetail && (
           <div>
-            <div style={{ marginBottom: 16 }}>
-              <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: INK, margin: 0 }}>{orgDetail.org?.name || 'Организация'}</h1>
-              <div style={{ fontSize: 13, color: M, marginTop: 4 }}>ИНН {orgDetail.org?.inn || '—'}</div>
+            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: INK, margin: 0 }}>{orgDetail.org?.name || 'Организация'}</h1>
+                <div style={{ fontSize: 13, color: M, marginTop: 4 }}>ИНН {orgDetail.org?.inn || '—'}</div>
+              </div>
+              <button onClick={() => setShowClientMessage(!showClientMessage)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                <MessageCircle size={14} /> Написать клиенту
+              </button>
             </div>
+            {showClientMessage && (
+              <div style={{ marginBottom: 16, padding: 16, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: INK, marginBottom: 10 }}>Сообщение клиенту</div>
+                <textarea
+                  value={clientMsgText}
+                  onChange={e => setClientMsgText(e.target.value)}
+                  placeholder="Текст сообщения…"
+                  rows={3}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: 10, border: `1px solid ${BD}`, borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 10 }}
+                  onFocus={e => e.target.style.borderColor = A}
+                  onBlur={e => e.target.style.borderColor = BD}
+                  onKeyDown={e => handleKeyDown(e, handleSendClientMessage)}
+                />
+                <button onClick={handleSendClientMessage} disabled={sendingClientMsg || !clientMsgText.trim()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: INK, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Send size={14} /> {sendingClientMsg ? 'Отправка…' : 'Отправить'}
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 2, marginBottom: 16, padding: 4, background: S2, borderRadius: 10, width: 'fit-content' }}>
               {[{ id: 'overview', label: 'Обзор' }, { id: 'users', label: `Пользователи (${(orgDetail.users || []).length})` }, { id: 'requests', label: `Обращения (${(orgDetail.requests || []).length})` }, { id: 'tasks', label: `Задачи (${(orgDetail.tasks || []).length})` }].map(t => (
                 <button key={t.id} onClick={() => setOrgTab(t.id)}
@@ -398,14 +635,20 @@ export default function ManagerPanel({ user, showToast }) {
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: A, marginBottom: 6 }}>РАБОЧЕЕ МЕСТО</div>
           <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.03em', color: INK, margin: 0 }}>АРМ Менеджера</h1>
         </div>
-        <button onClick={() => { if (section === 'dashboard') loadDashboard(); if (section === 'clients') loadClients(clientsTab); if (section === 'tasks') loadTasks(tasksStatus) }}
+        <button onClick={() => { if (section === 'dashboard') loadDashboard(); if (section === 'clients') loadClients(clientsTab); if (section === 'tasks') loadTasks(tasksStatus); if (section === 'chats') loadConversations(); if (section === 'campaigns') loadCampaigns() }}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: S, color: INK, border: `1px solid ${BD}`, padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500 }}>
           <RefreshCw size={14} /> Обновить
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 2, marginBottom: 20, padding: 4, background: S2, borderRadius: 10, width: 'fit-content' }}>
-        {[{ id: 'dashboard', label: 'Сводка' }, { id: 'clients', label: 'Клиенты' }, { id: 'tasks', label: 'Задачи' }].map(t => (
+      <div style={{ display: 'flex', gap: 2, marginBottom: 20, padding: 4, background: S2, borderRadius: 10, width: 'fit-content', flexWrap: 'wrap' }}>
+        {[
+          { id: 'dashboard', label: 'Сводка' },
+          { id: 'clients', label: 'Клиенты' },
+          { id: 'tasks', label: 'Задачи' },
+          { id: 'chats', label: 'Чаты' },
+          { id: 'campaigns', label: 'Кампании' },
+        ].map(t => (
           <button key={t.id} onClick={() => goTo(t.id)}
             style={{ fontSize: 13, fontWeight: 500, padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: section === t.id ? INK : M, background: section === t.id ? S : 'transparent' }}>
             {t.label}
@@ -528,6 +771,290 @@ export default function ManagerPanel({ user, showToast }) {
                       </button>
                     </div>
                     <div style={{ fontSize: 12, color: L, marginTop: 8 }}>{ts.label} • {formatDate(task.created_at)}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {section === 'chats' && (
+        <div>
+          {activeConvId ? (
+            <div>
+              <button onClick={() => { setActiveConvId(null); setMessages([]); setMsgText('') }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, color: M, cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', marginBottom: 16, padding: '6px 12px 6px 8px', borderRadius: 6 }}>
+                <ArrowLeft size={16} /> Назад к списку чатов
+              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)', minHeight: 400, background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {msgLoading ? (
+                    <div style={{ textAlign: 'center', color: M, padding: 40 }}>Загрузка сообщений…</div>
+                  ) : messages.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: M, padding: 40, fontSize: 14 }}>
+                      <MessageCircle size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+                      <div>Нет сообщений</div>
+                    </div>
+                  ) : (
+                    messages.map(msg => {
+                      const isManager = msg.role === 'manager'
+                      return (
+                        <div key={msg.id} style={{ display: 'flex', justifyContent: isManager ? 'flex-end' : 'flex-start' }}>
+                          <div style={{
+                            maxWidth: '70%',
+                            padding: '10px 14px',
+                            borderRadius: 12,
+                            background: isManager ? A : S2,
+                            color: isManager ? '#fff' : INK,
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                            borderBottomRightRadius: isManager ? 4 : 12,
+                            borderBottomLeftRadius: isManager ? 12 : 4,
+                          }}>
+                            <div>{msg.text}</div>
+                            <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4, textAlign: 'right' }}>{formatDate(msg.created_at)}</div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: `1px solid ${BD}`, background: S2 }}>
+                  <input
+                    type="text"
+                    value={msgText}
+                    onChange={e => setMsgText(e.target.value)}
+                    onKeyDown={e => handleKeyDown(e, handleSendMessage)}
+                    placeholder="Введите сообщение…"
+                    style={{ flex: 1, height: 38, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 12px', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => e.target.style.borderColor = A}
+                    onBlur={e => e.target.style.borderColor = BD}
+                  />
+                  <button onClick={handleSendMessage} disabled={sendingMsg || !msgText.trim()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 16px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                    <Send size={14} /> {sendingMsg ? '…' : ''}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              {convosLoading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка чатов…</div>
+              ) : conversations.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: M, fontSize: 14, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
+                  <MessageCircle size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+                  <div>Нет активных чатов</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {conversations.map(conv => (
+                    <div key={conv.id} onClick={() => setActiveConvId(conv.id)}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 16, background: S, border: `1px solid ${BD}`, borderRadius: 10, cursor: 'pointer', transition: 'all .2s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = A }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = BD }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 20, background: A, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <MessageCircle size={18} color="#fff" />
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.client_name || 'Клиент'}</div>
+                          {conv.unread_count > 0 && (
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: A, color: '#fff', flexShrink: 0 }}>
+                              {conv.unread_count}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 13, color: M }}>{conv.org_name || ''}{conv.org_inn ? ` • ИНН ${conv.org_inn}` : ''}</div>
+                        {conv.last_message && <div style={{ fontSize: 12, color: L, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.last_message}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {section === 'campaigns' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: INK }}>Кампании</div>
+            <button onClick={() => { setShowCreateCampaign(!showCreateCampaign); setDeliveriesFor(null) }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <Megaphone size={14} /> Создать кампанию
+            </button>
+          </div>
+
+          {showCreateCampaign && (
+            <div style={{ marginBottom: 20, padding: 20, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, color: INK, marginBottom: 16 }}>Новая кампания</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Название *</div>
+                  <input type="text" value={campaignForm.title} onChange={e => handleCampaignField('title', e.target.value)} placeholder="Название кампании"
+                    style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Тема письма</div>
+                  <input type="text" value={campaignForm.subject} onChange={e => handleCampaignField('subject', e.target.value)} placeholder="Тема"
+                    style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Категория</div>
+                  <select value={campaignForm.category} onChange={e => handleCampaignField('category', e.target.value)}
+                    style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 8px', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', boxSizing: 'border-box', background: S }}>
+                    {CAMPAIGN_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Тип действия</div>
+                  <select value={campaignForm.action_type} onChange={e => handleCampaignField('action_type', e.target.value)}
+                    style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 8px', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', boxSizing: 'border-box', background: S }}>
+                    {CAMPAIGN_ACTIONS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+                  </select>
+                </div>
+                {campaignForm.action_type !== 'none' && (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Текст кнопки</div>
+                    <input type="text" value={campaignForm.action_label} onChange={e => handleCampaignField('action_label', e.target.value)} placeholder="Например: Связаться"
+                      style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                      onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Целевые клиенты</div>
+                  <select value={campaignForm.target_status} onChange={e => handleCampaignField('target_status', e.target.value)}
+                    style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 8px', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', boxSizing: 'border-box', background: S }}>
+                    {TARGET_STATUSES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Начало</div>
+                  <input type="datetime-local" value={campaignForm.start_date} onChange={e => handleCampaignField('start_date', e.target.value)}
+                    style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Окончание</div>
+                  <input type="datetime-local" value={campaignForm.end_date} onChange={e => handleCampaignField('end_date', e.target.value)}
+                    style={{ width: '100%', height: 34, border: `1px solid ${BD}`, borderRadius: 6, padding: '0 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+                </div>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Краткий текст</div>
+                <textarea value={campaignForm.short_text} onChange={e => handleCampaignField('short_text', e.target.value)} placeholder="Краткое описание…" rows={2}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: 10, border: `1px solid ${BD}`, borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }}
+                  onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: M, marginBottom: 4 }}>Полный текст *</div>
+                <textarea value={campaignForm.full_text} onChange={e => handleCampaignField('full_text', e.target.value)} placeholder="Полный текст кампании…" rows={4}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: 10, border: `1px solid ${BD}`, borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }}
+                  onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <button onClick={handleCreateCampaign} disabled={creatingCampaign}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 20px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Megaphone size={14} /> {creatingCampaign ? 'Создание…' : 'Создать кампанию'}
+                </button>
+                <button onClick={() => setShowCreateCampaign(false)}
+                  style={{ height: 36, padding: '0 16px', background: S, color: M, border: `1px solid ${BD}`, borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
+
+          {deliveriesFor && (
+            <div style={{ marginBottom: 20, padding: 20, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>Доставки кампании</div>
+                <button onClick={() => { setDeliveriesFor(null); setDeliveries([]) }}
+                  style={{ fontSize: 13, fontWeight: 500, color: M, cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', padding: '4px 8px', borderRadius: 4 }}>
+                  ✕ Закрыть
+                </button>
+              </div>
+              {deliveriesLoading ? (
+                <div style={{ textAlign: 'center', color: M, padding: 20 }}>Загрузка доставок…</div>
+              ) : deliveries.length === 0 ? (
+                <div style={{ textAlign: 'center', color: M, padding: 20, fontSize: 14 }}>Нет доставок</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {deliveries.map(d => (
+                    <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', background: S2, borderRadius: 8, fontSize: 13 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: INK }}>{d.user_name || '—'}</div>
+                        <div style={{ color: M, fontSize: 12 }}>{d.org_name || '—'}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: L, flexShrink: 0, flexWrap: 'wrap' }}>
+                        {d.delivered_at && <span>Доставлено: {formatDate(d.delivered_at)}</span>}
+                        {d.opened_at && <span style={{ color: '#16A34A' }}>Открыто: {formatDate(d.opened_at)}</span>}
+                        {d.clicked_at && <span style={{ color: A }}>Клик: {formatDate(d.clicked_at)}</span>}
+                        {d.hidden && <span style={{ color: M }}>Скрыто</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {campsLoading ? (
+            <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка кампаний…</div>
+          ) : campaigns.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: M, fontSize: 14, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
+              <Megaphone size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+              <div>Нет созданных кампаний</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {campaigns.map(camp => {
+                const cs = CAMPAIGN_STATUS[camp.status] || CAMPAIGN_STATUS.draft
+                const activated = activationResult[camp.id]
+                return (
+                  <div key={camp.id} style={{ padding: 16, background: S, border: `1px solid ${BD}`, borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{camp.title}</div>
+                        <div style={{ fontSize: 13, color: M, marginTop: 2 }}>
+                          {CAMPAIGN_CATEGORIES.find(c => c.id === camp.category)?.label || camp.category}
+                          {camp.author && <span> • {camp.author}</span>}
+                        </div>
+                        {(camp.start_date || camp.end_date) && (
+                          <div style={{ fontSize: 12, color: L, marginTop: 2 }}>
+                            {camp.start_date ? formatFullDate(camp.start_date) : ''}
+                            {camp.start_date && camp.end_date ? ' – ' : ''}
+                            {camp.end_date ? formatFullDate(camp.end_date) : ''}
+                          </div>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', padding: '3px 10px', borderRadius: 6, background: S2, color: cs.color, flexShrink: 0 }}>{cs.label}</span>
+                    </div>
+                    {camp.subject && <div style={{ fontSize: 13, color: M, marginTop: 8 }}>Тема: {camp.subject}</div>}
+                    {camp.short_text && <div style={{ fontSize: 13, color: M, marginTop: 4 }}>{camp.short_text}</div>}
+                    {activated && (
+                      <div style={{ marginTop: 10, padding: '10px 12px', background: '#F0FDF4', borderRadius: 8, fontSize: 13, color: '#16A34A', fontWeight: 600 }}>
+                        Кампания активирована! Доставлено: {activated.delivered ?? activated.count ?? '—'}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                      {camp.status === 'draft' && (
+                        <button onClick={() => handleActivateCampaign(camp.id)} disabled={activatingId === camp.id}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 14px', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          {activatingId === camp.id ? 'Активация…' : 'Активировать'}
+                        </button>
+                      )}
+                      <button onClick={() => handleShowDeliveries(camp.id)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 14px', background: S, color: INK, border: `1px solid ${BD}`, borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Доставки
+                      </button>
+                    </div>
                   </div>
                 )
               })}

@@ -8,6 +8,8 @@ const testDirectory = mkdtempSync(join(tmpdir(), 'prosto-api-'))
 process.env.DB_PATH = join(testDirectory, 'prosto.db')
 process.env.JWT_SECRET = 'test-only-secret-with-sufficient-length'
 process.env.NODE_ENV = 'test'
+process.env.ADMIN_EMAIL = 'admin@example.test'
+process.env.ADMIN_PASSWORD = 'admin-password-2026'
 
 const { app } = await import('./index.js')
 const server = app.listen(0)
@@ -72,4 +74,19 @@ test('registration, authentication and manager message work end to end', async (
   const requests = await jsonRequest('/requests', { token: registration.data.token })
   assert.equal(requests.response.status, 200)
   assert.equal(requests.data.requests.length, 1)
+
+  const forbiddenAdmin = await jsonRequest('/admin/stats', { token: registration.data.token })
+  assert.equal(forbiddenAdmin.response.status, 403)
+
+  const adminLogin = await jsonRequest('/auth/login', {
+    method: 'POST',
+    body: { email: 'admin@example.test', password: 'admin-password-2026' },
+  })
+  assert.equal(adminLogin.response.status, 200)
+  assert.equal(adminLogin.data.user.role, 'admin')
+
+  const adminStats = await jsonRequest('/admin/stats', { token: adminLogin.data.token })
+  assert.equal(adminStats.response.status, 200)
+  assert.equal(adminStats.data.server.status, 'ok')
+  assert.equal(adminStats.data.requests, 1)
 })

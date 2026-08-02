@@ -35,6 +35,7 @@ db.run(`
     description TEXT,
     status TEXT DEFAULT 'open',
     level TEXT DEFAULT 'l0',
+    assistant_thread_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS messages (
@@ -46,28 +47,8 @@ db.run(`
   );
 `)
 
-// Migration: add role column if missing
-try { db.run('ALTER TABLE users ADD COLUMN role TEXT DEFAULT \'user\'') } catch(e) {}
-
 function save() {
   fs.writeFileSync(dbPath, Buffer.from(db.export()))
-}
-
-// === ADMIN BOOTSTRAP ===
-const adminEmail = process.env.ADMIN_EMAIL || 'admin@prosto.ru'
-const adminPass = process.env.ADMIN_PASSWORD || 'admin123456'
-const existingAdmin = queryOne('SELECT id FROM users WHERE email = ?', [adminEmail])
-if (!existingAdmin) {
-  const hash = bcrypt.hashSync(adminPass, 10)
-  db.run('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)', [adminEmail, hash, 'Администратор', 'admin'])
-  save()
-  console.log(`Admin created: ${adminEmail} / ${adminPass}`)
-} else {
-  // Ensure admin has role
-  if (existingAdmin.role !== 'admin') {
-    db.run('UPDATE users SET role = \'admin\' WHERE email = ?', [adminEmail])
-    save()
-  }
 }
 
 function queryOne(sql, params = []) {
@@ -86,6 +67,14 @@ function queryAll(sql, params = []) {
   while (stmt.step()) rows.push(stmt.getAsObject())
   stmt.free()
   return rows
+}
+
+function execute(sql, params = []) {
+  const stmt = db.prepare(sql)
+  stmt.bind(params)
+  stmt.step()
+  stmt.free()
+  save()
 }
 
 function executeAndGetId(sql, params = []) {
@@ -137,11 +126,10 @@ export function getRequestById(id, userId) {
 
 export function updateRequest(id, updates) {
   for (const [k, v] of Object.entries(updates)) {
-    if (['status', 'level', 'title', 'description'].includes(k)) {
-      db.run(`UPDATE requests SET ${k} = ? WHERE id = ?`, [v, id])
+    if (['status', 'level', 'title', 'description', 'assistant_thread_id'].includes(k)) {
+      execute(`UPDATE requests SET ${k} = ? WHERE id = ?`, [v, id])
     }
   }
-  save()
   return queryOne('SELECT * FROM requests WHERE id = ?', [id])
 }
 
@@ -161,7 +149,7 @@ export function getAllUsers() {
 
 export function getAllRequests() {
   return queryAll(`
-    SELECT r.*, u.email, u.name as user_name, u.inn,
+    SELECT r.*, u.email, u.name, u.inn, u.organization,
       (SELECT COUNT(*) FROM messages WHERE request_id = r.id) as msg_count
     FROM requests r
     LEFT JOIN users u ON r.user_id = u.id
@@ -180,7 +168,9 @@ export function getOrganizations() {
     orgs[inn].users.push(u)
     const reqs = queryAll('SELECT id, title, status, created_at FROM requests WHERE user_id = ? ORDER BY created_at DESC', [u.id])
     orgs[inn].requestCount += reqs.length
-    if (reqs.length > 0) orgs[inn].lastRequest = reqs[0].created_at
+    if (reqs.length > 0 && (!orgs[inn].lastRequest || reqs[0].created_at > orgs[inn].lastRequest)) {
+      orgs[inn].lastRequest = reqs[0].created_at
+    }
     orgs[inn].requests = orgs[inn].requests || []
     orgs[inn].requests.push(...reqs)
   }
@@ -201,5 +191,39 @@ export function getStats() {
     openRequests: openReqs?.count || 0,
     doneRequests: doneReqs?.count || 0,
     organizations: orgs?.count || 0,
+  }
+}
+
+function columnNames(table) {
+  const result = db.exec(`PRAGMA table_info(${table})`)
+  return result[0]?.values?.map(row => row[1]) || []
+}
+
+const userColumns = columnNames('users')
+if (!userColumns.includes('role')) {
+  db.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
+  save()
+}
+
+const requestColumns = columnNames('requests')
+if (!requestColumns.includes('assistant_thread_id')) {
+  db.run('ALTER TABLE requests ADD COLUMN assistant_thread_id TEXT')
+  save()
+}
+
+const adminEmail = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase()
+const adminPassword = String(process.env.ADMIN_PASSWORD || '')
+if (adminEmail) {
+  const existingAdmin = findUserByEmail(adminEmail)
+  if (existingAdmin) {
+    if (existingAdmin.role !== 'admin') execute("UPDATE users SET role = 'admin' WHERE id = ?", [existingAdmin.id])
+  } else if (adminPassword.length >= 12) {
+    const hash = bcrypt.hashSync(adminPassword, 10)
+    execute(
+      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+      [adminEmail, hash, 'Администратор', 'admin'],
+    )
+  } else {
+    console.warn('ADMIN_EMAIL is set, but ADMIN_PASSWORD must contain at least 12 characters to create an admin')
   }
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { requestsApi } from '../api.js'
+import { adminApi } from '../api.js'
 
-export default function AdminPanel({ user }) {
+export default function AdminPanel() {
   const [tab, setTab] = useState('dashboard')
   const [stats, setStats] = useState(null)
   const [users, setUsers] = useState([])
@@ -20,14 +20,11 @@ export default function AdminPanel({ user }) {
   async function load() {
     setLoading(true)
     try {
-      const token = localStorage.getItem('prosto_token')
-      const headers = { Authorization: `Bearer ${token}` }
-
       const [s, u, r, o] = await Promise.all([
-        fetch('https://prosto-0eq7.onrender.com/api/admin/stats', { headers }).then(r => r.json()),
-        fetch('https://prosto-0eq7.onrender.com/api/admin/users', { headers }).then(r => r.json()),
-        fetch('https://prosto-0eq7.onrender.com/api/admin/requests', { headers }).then(r => r.json()),
-        fetch('https://prosto-0eq7.onrender.com/api/admin/organizations', { headers }).then(r => r.json()),
+        adminApi.stats(),
+        adminApi.users(),
+        adminApi.requests(),
+        adminApi.organizations(),
       ])
       setStats(s)
       setUsers(u.users || [])
@@ -45,11 +42,7 @@ export default function AdminPanel({ user }) {
   async function viewRequest(id) {
     setSelectedRequest(id)
     try {
-      const token = localStorage.getItem('prosto_token')
-      const r = await fetch(`https://prosto-0eq7.onrender.com/api/admin/requests/${id}/messages`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      const data = await r.json()
+      const data = await adminApi.requestMessages(id)
       setMessages(data.messages || [])
     } catch (e) {
       console.error(e)
@@ -61,13 +54,7 @@ export default function AdminPanel({ user }) {
     setTesting(true)
     setTestResult('')
     try {
-      const token = localStorage.getItem('prosto_token')
-      const r = await fetch('https://prosto-0eq7.onrender.com/api/admin/test-assistant', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: testMsg.trim() })
-      })
-      const data = await r.json()
+      const data = await adminApi.testAssistant(testMsg.trim())
       setTestResult(data.text || 'Нет ответа')
     } catch (e) {
       setTestResult('Ошибка: ' + e.message)

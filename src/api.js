@@ -91,6 +91,18 @@ export const systemApi = {
   wake: () => api('/health', {}, { maxAttempts: 1, timeoutMs: 8000 }),
 }
 
+export const adminApi = {
+  stats: () => api('/admin/stats'),
+  users: () => api('/admin/users'),
+  requests: () => api('/admin/requests'),
+  organizations: () => api('/admin/organizations'),
+  requestMessages: (id) => api(`/admin/requests/${id}/messages`),
+  testAssistant: (message) => api('/admin/test-assistant', {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  }, { maxAttempts: 1, timeoutMs: 30000 }),
+}
+
 export const requestsApi = {
   list: () => api('/requests'),
   create: (title, description) =>

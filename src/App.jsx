@@ -145,7 +145,7 @@ export default function App() {
           </div>
         </main>
       </div>
-      <MobileTabbar onNavigate={goTo} page={page} />
+      <MobileTabbar onNavigate={goTo} page={page} user={user} />
       {managerOpen && <ManagerModal onClose={() => setManagerOpen(false)} onSend={messageManager} />}
       {toast && <Toast message={toast} />}
     </div>

@@ -1,4 +1,4 @@
-import { LayoutGrid, Plus, Star, Bell, User } from 'lucide-react';
+import { LayoutGrid, Plus, Star, Bell, User, ShieldCheck } from 'lucide-react';
 
 const ACCENT = 'var(--color-accent)';
 const INK_MUTED = 'var(--color-ink-muted)';
@@ -8,8 +8,8 @@ const BORDER = 'var(--color-border)';
 const TABS = [
   { key: 'dashboard', label: 'Вопросы', icon: LayoutGrid },
   { key: 'new', label: 'Задать', icon: Plus },
-  { key: 'important', label: 'Важное', icon: Star, badge: 2 },
-  { key: 'notifs', label: 'Уведом.', icon: Bell, badge: 3 },
+  { key: 'important', label: 'Важное', icon: Star },
+  { key: 'notifs', label: 'Уведом.', icon: Bell },
   { key: 'profile', label: 'Профиль', icon: User },
 ];
 
@@ -44,7 +44,11 @@ function Tab({ tab, page, onNavigate }) {
   );
 }
 
-export default function MobileTabbar({ onNavigate, page }) {
+export default function MobileTabbar({ onNavigate, page, user }) {
+  const tabs = user?.role === 'admin'
+    ? [...TABS, { key: 'admin', label: 'Админ', icon: ShieldCheck }]
+    : TABS
+
   return (
     <nav
       className="md:hidden fixed bottom-0 left-0 right-0 flex items-stretch z-30"
@@ -55,7 +59,7 @@ export default function MobileTabbar({ onNavigate, page }) {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-      {TABS.map((tab) => (
+      {tabs.map((tab) => (
         <Tab key={tab.key} tab={tab} page={page} onNavigate={onNavigate} />
       ))}
     </nav>

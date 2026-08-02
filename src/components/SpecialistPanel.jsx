@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Send, ClipboardList, UserCheck, FileQuestion, CheckCircle2, RotateCcw, Lock, Search } from 'lucide-react'
+import { ArrowLeft, Send, ClipboardList, UserCheck, FileQuestion, CheckCircle2, RotateCcw, Lock, Search, ArrowLeftRight } from 'lucide-react'
 import { specialistApi } from '../api.js'
 
 function formatMessageText(text) {
@@ -57,6 +57,11 @@ export default function SpecialistPanel({ user, showToast }) {
   const [replyText, setReplyText] = useState('')
   const [noteText, setNoteText] = useState('')
   const [showNote, setShowNote] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
+  const [transferReason, setTransferReason] = useState('')
+  const [transferDiagnosis, setTransferDiagnosis] = useState('')
+  const [transferExpected, setTransferExpected] = useState('')
+  const [transferPriority, setTransferPriority] = useState('normal')
 
   const A = '#E50071', INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
@@ -210,6 +215,31 @@ export default function SpecialistPanel({ user, showToast }) {
     }
   }
 
+  const handleTransfer = async () => {
+    const reason = transferReason.trim()
+    if (!reason) { showToast('Укажите причину передачи'); return }
+    setActionLoading(true)
+    try {
+      await specialistApi.transferToManager(selectedRequest, {
+        reason,
+        diagnosis: transferDiagnosis.trim(),
+        expected_result: transferExpected.trim(),
+        priority: transferPriority,
+      })
+      setShowTransfer(false)
+      setTransferReason('')
+      setTransferDiagnosis('')
+      setTransferExpected('')
+      setTransferPriority('normal')
+      await refreshDetail()
+      showToast('Обращение передано менеджеру')
+    } catch (e) {
+      showToast(e.message || 'Не удалось передать менеджеру')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleSearch = () => {
     setSearch(searchInput.trim())
   }
@@ -339,6 +369,10 @@ export default function SpecialistPanel({ user, showToast }) {
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 16px', background: S, color: M, border: `1px solid ${BD}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                       <RotateCcw size={15} /> Вернуть в очередь
                     </button>
+                    <button onClick={() => setShowTransfer(!showTransfer)} disabled={actionLoading}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 16px', background: showTransfer ? '#FFF0F7' : S, color: A, border: showTransfer ? `1px solid ${A}` : `1px solid ${A}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      <ArrowLeftRight size={15} /> Передать менеджеру
+                    </button>
                   </div>
 
                   <textarea value={replyText} onChange={e => setReplyText(e.target.value)}
@@ -356,6 +390,39 @@ export default function SpecialistPanel({ user, showToast }) {
                         style={{ height: 38, padding: '0 16px', background: noteText.trim() ? '#D97706' : S2, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
                         Сохранить заметку
                       </button>
+                    </div>
+                  )}
+
+                  {showTransfer && (
+                    <div style={{ background: '#FFF0F7', border: `1px solid ${A}`, borderRadius: 10, padding: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 12 }}>Передача обращения менеджеру</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <input type="text" value={transferReason} onChange={e => setTransferReason(e.target.value)} placeholder="Причина выхода за границы L1 (обязательно)"
+                          style={{ height: 40, border: `1px solid ${transferReason ? BD : A}`, borderRadius: 8, padding: '0 12px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                          onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+                        <input type="text" value={transferDiagnosis} onChange={e => setTransferDiagnosis(e.target.value)} placeholder="Диагноз"
+                          style={{ height: 40, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 12px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                          onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+                        <input type="text" value={transferExpected} onChange={e => setTransferExpected(e.target.value)} placeholder="Ожидаемый результат"
+                          style={{ height: 40, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 12px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                          onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+                        <select value={transferPriority} onChange={e => setTransferPriority(e.target.value)}
+                          style={{ height: 40, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 10px', fontSize: 14, fontFamily: 'inherit', outline: 'none', cursor: 'pointer', boxSizing: 'border-box' }}>
+                          <option value="normal">Обычный приоритет</option>
+                          <option value="high">Высокий приоритет</option>
+                          <option value="critical">Критичный</option>
+                        </select>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={handleTransfer} disabled={actionLoading || !transferReason.trim()}
+                            style={{ height: 40, padding: '0 18px', background: actionLoading ? S2 : A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: actionLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                            Передать менеджеру
+                          </button>
+                          <button onClick={() => setShowTransfer(false)}
+                            style={{ height: 40, padding: '0 18px', background: S, color: M, border: `1px solid ${BD}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Отмена
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

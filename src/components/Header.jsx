@@ -13,6 +13,8 @@ export default function Header({ onNavigate, onOpenManager, page, user }) {
     { id: 'notifs', label: 'Уведомления' },
     ...(user?.role === 'admin' ? [{ id: 'admin', label: 'Админка' }] : []),
     ...((user?.role === 'specialist' || user?.role === 'admin') ? [{ id: 'specialist', label: 'L1' }] : []),
+    ...((user?.role === 'manager' || user?.role === 'rof' || user?.role === 'admin') ? [{ id: 'manager', label: 'Клиенты' }] : []),
+    ...((user?.role === 'rof' || user?.role === 'admin') ? [{ id: 'rof', label: 'РОФ' }] : []),
   ]
 
   const initials = user?.name ? user.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : user?.email?.[0]?.toUpperCase() || '?'

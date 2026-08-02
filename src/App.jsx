@@ -16,6 +16,8 @@ import MobileTabbar from './components/MobileTabbar.jsx'
 import AdminPanel from './components/AdminPanel.jsx'
 import OnboardingProfile from './components/OnboardingProfile.jsx'
 import SpecialistPanel from './components/SpecialistPanel.jsx'
+import ManagerPanel from './components/ManagerPanel.jsx'
+import RofPanel from './components/RofPanel.jsx'
 
 export default function App() {
   const { user, setUser, loading, login, register: rawRegister, logout } = useAuth()
@@ -144,7 +146,7 @@ export default function App() {
               />
             )}
             {page === 'important' && (
-              <Important onOpenManager={() => setManagerOpen(true)} />
+              <Important showToast={showToast} onOpenManager={() => setManagerOpen(true)} />
             )}
             {page === 'profile' && (
               <Profile user={user} onOpenManager={() => setManagerOpen(true)} onLogout={logout} onUpdateUser={setUser} />
@@ -157,6 +159,12 @@ export default function App() {
             )}
             {page === 'specialist' && (user?.role === 'specialist' || user?.role === 'admin') && (
               <SpecialistPanel user={user} showToast={showToast} />
+            )}
+            {page === 'manager' && (user?.role === 'manager' || user?.role === 'rof' || user?.role === 'admin') && (
+              <ManagerPanel user={user} showToast={showToast} />
+            )}
+            {page === 'rof' && (user?.role === 'rof' || user?.role === 'admin') && (
+              <RofPanel user={user} showToast={showToast} />
             )}
           </div>
         </main>

@@ -1,4 +1,4 @@
-import { LayoutGrid, Plus, Star, Bell, User, ShieldCheck, Headphones } from 'lucide-react';
+import { LayoutGrid, Plus, Star, Bell, User, ShieldCheck, Headphones, Briefcase, BarChart } from 'lucide-react';
 
 const ACCENT = 'var(--color-accent)';
 const INK_MUTED = 'var(--color-ink-muted)';
@@ -45,11 +45,13 @@ function Tab({ tab, page, onNavigate }) {
 }
 
 export default function MobileTabbar({ onNavigate, page, user }) {
-  const tabs = user?.role === 'admin'
-    ? [...TABS, { key: 'specialist', label: 'L1', icon: Headphones }, { key: 'admin', label: 'Админ', icon: ShieldCheck }]
-    : user?.role === 'specialist'
-      ? [...TABS, { key: 'specialist', label: 'L1', icon: Headphones }]
-      : TABS
+  const role = user?.role
+  const extra = []
+  if (role === 'specialist') extra.push({ key: 'specialist', label: 'L1', icon: Headphones })
+  if (role === 'manager' || role === 'rof' || role === 'admin') extra.push({ key: 'manager', label: 'Клиенты', icon: Briefcase })
+  if (role === 'rof' || role === 'admin') extra.push({ key: 'rof', label: 'РОФ', icon: BarChart })
+  if (role === 'admin') extra.push({ key: 'admin', label: 'Админ', icon: ShieldCheck })
+  const tabs = [...TABS, ...extra]
 
   return (
     <nav

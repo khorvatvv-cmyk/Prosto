@@ -18,6 +18,11 @@ export default function AdminPanel() {
   const [newSpecName, setNewSpecName] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [newManagerEmail, setNewManagerEmail] = useState('')
+  const [newManagerPassword, setNewManagerPassword] = useState('')
+  const [newManagerName, setNewManagerName] = useState('')
+  const [creatingManager, setCreatingManager] = useState(false)
+  const [createManagerError, setCreateManagerError] = useState('')
 
   const A = '#E50071', INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
@@ -91,6 +96,23 @@ export default function AdminPanel() {
       setCreateError(e.message || 'Не удалось создать')
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function createManager() {
+    if (!newManagerEmail.trim() || !newManagerPassword.trim()) return
+    setCreatingManager(true)
+    setCreateManagerError('')
+    try {
+      await adminApi.createManager(newManagerEmail.trim(), newManagerPassword, newManagerName.trim())
+      setNewManagerEmail('')
+      setNewManagerPassword('')
+      setNewManagerName('')
+      await load()
+    } catch (e) {
+      setCreateManagerError(e.message || 'Не удалось создать менеджера')
+    } finally {
+      setCreatingManager(false)
     }
   }
 
@@ -247,6 +269,8 @@ export default function AdminPanel() {
                       >
                         <option value="user">Клиент</option>
                         <option value="specialist">Специалист L1</option>
+                        <option value="manager">Менеджер</option>
+                        <option value="rof">РОФ</option>
                       </select>
                     ) : (
                       <span style={{ fontSize: 12, color: L }}>—</span>
@@ -263,6 +287,27 @@ export default function AdminPanel() {
       {/* === SPECIALISTS === */}
       {tab === 'specialists' && (
         <div>
+          {/* Create manager form */}
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 500 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Добавить менеджера</h3>
+            <p style={{ fontSize: 13, color: M, marginBottom: 16 }}>Менеджер сможет входить в приложение и вести своих клиентов.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input type="text" value={newManagerName} onChange={e => setNewManagerName(e.target.value)} placeholder="Имя менеджера"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              <input type="email" value={newManagerEmail} onChange={e => setNewManagerEmail(e.target.value)} placeholder="Email"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              <input type="password" value={newManagerPassword} onChange={e => setNewManagerPassword(e.target.value)} placeholder="Пароль (мин. 8 символов)"
+                style={{ height: 42, border: `1px solid ${BD}`, borderRadius: 8, padding: '0 14px', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = A} onBlur={e => e.target.style.borderColor = BD} />
+              {createManagerError && <div style={{ fontSize: 13, color: A, padding: '8px 12px', background: '#FFF0F7', borderRadius: 8 }}>{createManagerError}</div>}
+              <button onClick={createManager} disabled={creatingManager || !newManagerEmail.trim() || !newManagerPassword.trim()}
+                style={{ height: 46, background: creatingManager || !newManagerEmail.trim() || !newManagerPassword.trim() ? S2 : A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: creatingManager ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {creatingManager ? 'Создание…' : 'Создать менеджера'}
+              </button>
+            </div>
+          </div>
           {/* Create form */}
           <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 500 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Добавить специалиста L1</h3>

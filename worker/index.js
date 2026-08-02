@@ -110,6 +110,58 @@ function requireAdmin(user) {
   if (user.role !== 'admin') throw httpError(403, 'Доступ только для администратора')
 }
 
+function requireManager(user) {
+  if (user.role !== 'manager' && user.role !== 'rof' && user.role !== 'admin') throw httpError(403, 'Доступ только для менеджера')
+}
+
+function requireRof(user) {
+  if (user.role !== 'rof' && user.role !== 'admin') throw httpError(403, 'Доступ только для РОФ')
+}
+
+async function audit(env, actorId, action, entityType, entityId, details = null) {
+  await env.DB.prepare(
+    'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)',
+  ).bind(actorId || null, action, entityType || null, entityId || null, details).run()
+}
+
+async function getOrgForUser(env, userId) {
+  return env.DB.prepare(`
+    SELECT o.* FROM organizations o
+    JOIN organization_users ou ON o.id = ou.organization_id
+    WHERE ou.user_id = ? AND ou.membership_status = 'active'
+  `).bind(userId).first()
+}
+
+async function getManagerOrgs(env, managerId) {
+  const result = await env.DB.prepare('SELECT * FROM organizations WHERE manager_id = ?').bind(managerId).all()
+  return result.results || []
+}
+
+async function requireManagerContext(request, env) {
+  const user = await authenticate(request, env)
+  requireManager(user)
+  return user
+}
+
+async function requireRofContext(request, env) {
+  const user = await authenticate(request, env)
+  requireRof(user)
+  return user
+}
+
+async function findOrCreateConversation(env, orgId, clientUserId, managerId = null) {
+  const existing = await env.DB.prepare(
+    'SELECT * FROM manager_conversations WHERE organization_id = ? AND client_user_id = ?',
+  ).bind(orgId, clientUserId).first()
+  if (existing) return existing
+  await env.DB.prepare(
+    'INSERT INTO manager_conversations (organization_id, client_user_id, manager_id) VALUES (?, ?, ?)',
+  ).bind(orgId, clientUserId, managerId).run()
+  return env.DB.prepare(
+    'SELECT * FROM manager_conversations WHERE organization_id = ? AND client_user_id = ?',
+  ).bind(orgId, clientUserId).first()
+}
+
 async function getRequestForUser(env, id, userId) {
   return env.DB.prepare(`
     SELECT r.*, s.name AS specialist_name, s.email AS specialist_email
@@ -145,7 +197,7 @@ async function addMessage(env, requestId, sender, text, isInternal = false) {
 }
 
 async function updateRequest(env, id, updates) {
-  const allowedKeys = ['status', 'level', 'title', 'description', 'assistant_thread_id', 'assigned_to', 'l1_transferred_at', 'l1_taken_at', 'last_message_at', 'result_message']
+  const allowedKeys = ['status', 'level', 'title', 'description', 'assistant_thread_id', 'assigned_to', 'l1_transferred_at', 'l1_taken_at', 'last_message_at', 'result_message', 'manager_task_id', 'out_of_l1_reason', 'priority', 'return_count', 'result_check_method', 'organization_id', 'client_user_id']
   const entries = Object.entries(updates).filter(([key]) => allowedKeys.includes(key))
   if (entries.length) {
     const assignments = entries.map(([key]) => `${key} = ?`).join(', ')
@@ -373,7 +425,7 @@ async function handleRequestEvaluation(request, env, id) {
       await addMessage(env, id, 'system', 'Подключаем специалиста. Повторно описывать не нужно.')
     } else if (item.level === 'l1') {
       if (item.status !== 'result_ready') throw httpError(400, 'Подтверждение результата доступно только когда результат готов')
-      await updateRequest(env, id, { status: 'returned' })
+      await updateRequest(env, id, { status: 'returned', return_count: (item.return_count || 0) + 1 })
       await addMessage(env, id, 'system', 'Клиент сообщил, что решение не помогло. Обращение вернулось в работу.')
     } else {
       throw httpError(400, 'Неверное действие для текущего состояния')
@@ -699,7 +751,7 @@ async function handleAdminUserRole(request, env, id) {
   await adminContext(request, env)
   const body = await requestBody(request)
   const role = String(body.role || '').trim()
-  if (!['user', 'admin', 'specialist'].includes(role)) throw httpError(400, 'Допустимые роли: user, admin, specialist')
+  if (!['user', 'admin', 'specialist', 'manager', 'rof'].includes(role)) throw httpError(400, 'Допустимые роли: user, admin, specialist, manager, rof')
   await env.DB.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, Number(id)).run()
   const updated = await findUserById(env, Number(id))
   if (!updated) throw httpError(404, 'Пользователь не найден')
@@ -726,29 +778,541 @@ async function handleAdminAssign(request, env, id) {
 }
 
 async function handleAdminCreateSpecialist(request, env) {
-  await adminContext(request, env)
+await adminContext(request, env)
   const body = await requestBody(request)
   const email = normalizeEmail(body.email)
   const password = String(body.password || '')
   const name = String(body.name || '').trim()
+  const role = String(body.role || 'specialist').trim()
+  if (!['specialist', 'manager', 'rof'].includes(role)) throw httpError(400, 'Недопустимая роль')
 
   if (!email || !password) throw httpError(400, 'Email и пароль обязательны')
-  if (!/^\S+@\S+\.\S+$/.test(email)) throw httpError(400, 'Укажите корректный email')
-  if (password.length < 8) throw httpError(400, 'Пароль должен содержать не менее 8 символов')
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw httpError(400, 'Некорректный email')
+  if (password.length < 8) throw httpError(400, 'Пароль должен быть не короче 8 символов')
   if (await findUserByEmail(env, email)) throw httpError(409, 'Пользователь с таким email уже существует')
 
   const passwordHash = await hashPassword(password, passwordSecret(env))
   let result
   try {
     result = await env.DB.prepare(
-      "INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, 'specialist')",
-    ).bind(email, passwordHash, name || 'Специалист L1').run()
+      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+    ).bind(email, passwordHash, name || 'Менеджер', role).run()
   } catch (error) {
     if (String(error.message).includes('UNIQUE')) throw httpError(409, 'Пользователь с таким email уже существует')
     throw error
   }
   const user = await findUserById(env, result.meta.last_row_id)
   return json({ user: publicUser(user) }, 201)
+}
+
+// === MANAGER: Organizations ===
+
+async function handleManagerDashboard(request, env) {
+  const user = await requireManagerContext(request, env)
+  const orgs = await getManagerOrgs(env, user.id)
+  const orgIds = orgs.map(o => o.id)
+  let stats = {
+    myClients: orgs.length,
+    unassigned: 0,
+    newClients: 0,
+    requireAttention: 0,
+    openRequests: 0,
+    notHelped: 0,
+    unresolved: 0,
+    newMessages: 0,
+    newTasks: 0,
+    noRequests: 0,
+    longInactive: 0,
+    frequent: 0,
+    campaignReactions: 0,
+    tasksNoNextStep: 0,
+  }
+  if (orgIds.length) {
+    const placeholders = orgIds.map(() => '?').join(',')
+    const [nr, na, or2, nh, ur, nm, nt, nn, ns] = await env.DB.batch([
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM organizations WHERE id IN (${placeholders}) AND created_at >= date('now','-7 days')`).bind(...orgIds),
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM organizations WHERE id IN (${placeholders}) AND last_activity_at < date('now','-30 days')`).bind(...orgIds),
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM requests WHERE organization_id IN (${placeholders}) AND status != 'done'`).bind(...orgIds),
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM requests WHERE organization_id IN (${placeholders}) AND return_count > 0 AND status != 'done'`).bind(...orgIds),
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM requests WHERE organization_id IN (${placeholders}) AND status NOT IN ('done','cancelled')`).bind(...orgIds),
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM manager_messages m JOIN manager_conversations c ON m.conversation_id = c.id WHERE c.organization_id IN (${placeholders}) AND m.is_read = 0 AND m.sender_id != ?`).bind(...orgIds, user.id),
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM manager_tasks WHERE manager_id = ? AND status = 'open'`).bind(user.id),
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM organizations o WHERE o.id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.organization_id = o.id)`).bind(...orgIds),
+      env.DB.prepare(`SELECT COUNT(*) AS c FROM manager_tasks WHERE manager_id = ? AND status = 'open' AND (next_step IS NULL OR next_step = '')`).bind(user.id),
+    ])
+    stats.newClients = nr?.results?.[0]?.c || 0
+    stats.longInactive = na?.results?.[0]?.c || 0
+    stats.openRequests = or2?.results?.[0]?.c || 0
+    stats.notHelped = nh?.results?.[0]?.c || 0
+    stats.unresolved = ur?.results?.[0]?.c || 0
+    stats.newMessages = nm?.results?.[0]?.c || 0
+    stats.newTasks = nt?.results?.[0]?.c || 0
+    stats.noRequests = nn?.results?.[0]?.c || 0
+    stats.tasksNoNextStep = ns?.results?.[0]?.c || 0
+  }
+  const ua = await env.DB.prepare('SELECT COUNT(*) AS c FROM organizations WHERE manager_id IS NULL').first()
+  stats.unassigned = ua?.c || 0
+  return json({ stats, orgs })
+}
+
+async function handleManagerClients(request, env) {
+  const user = await requireManagerContext(request, env)
+  const url = new URL(request.url)
+  const tab = url.searchParams.get('tab') || 'mine'
+  let sql, params
+  if (tab === 'mine') {
+    sql = `SELECT o.*, (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id) AS req_count, (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id AND r.status != 'done') AS open_req FROM organizations o WHERE o.manager_id = ? ORDER BY o.created_at DESC`
+    params = [user.id]
+  } else if (tab === 'unassigned') {
+    sql = `SELECT o.*, (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id) AS req_count FROM organizations o WHERE o.manager_id IS NULL ORDER BY o.created_at DESC`
+    params = []
+  } else if (tab === 'new') {
+    sql = `SELECT o.*, (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id) AS req_count FROM organizations o WHERE o.created_at >= date('now','-7 days') ORDER BY o.created_at DESC`
+    params = []
+  } else if (tab === 'attention') {
+    sql = `SELECT o.*, (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id AND r.return_count > 0 AND r.status != 'done') AS open_req FROM organizations o WHERE o.manager_id = ? AND EXISTS (SELECT 1 FROM requests r WHERE r.organization_id = o.id AND r.return_count > 0 AND r.status != 'done') ORDER BY o.created_at DESC`
+    params = [user.id]
+  } else if (tab === 'no-requests') {
+    sql = `SELECT o.* FROM organizations o WHERE o.manager_id = ? AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.organization_id = o.id) ORDER BY o.created_at DESC`
+    params = [user.id]
+  } else if (tab === 'frequent') {
+    sql = `SELECT o.*, COUNT(r.id) AS req_count FROM organizations o JOIN requests r ON r.organization_id = o.id WHERE o.manager_id = ? AND r.created_at >= date('now','-30 days') GROUP BY o.id HAVING req_count >= 3 ORDER BY req_count DESC`
+    params = [user.id]
+  } else if (tab === 'unresolved') {
+    sql = `SELECT o.*, (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id AND r.status NOT IN ('done','cancelled')) AS open_req FROM organizations o WHERE o.manager_id = ? AND EXISTS (SELECT 1 FROM requests r WHERE r.organization_id = o.id AND r.status NOT IN ('done','cancelled')) ORDER BY o.created_at DESC`
+    params = [user.id]
+  } else {
+    sql = `SELECT o.*, (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id) AS req_count, (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id AND r.status != 'done') AS open_req FROM organizations o WHERE o.manager_id = ? ORDER BY o.created_at DESC`
+    params = [user.id]
+  }
+  const result = await env.DB.prepare(sql).bind(...params).all()
+  return json({ clients: result.results || [] })
+}
+
+async function handleOrgDetail(request, env, id) {
+  const user = await requireManagerContext(request, env)
+  const org = await env.DB.prepare(`
+    SELECT o.*, m.name AS manager_name, m.email AS manager_email
+    FROM organizations o LEFT JOIN users m ON o.manager_id = m.id
+    WHERE o.id = ?
+  `).bind(id).first()
+  if (!org) throw httpError(404, 'Организация не найдена')
+  if (user.role === 'manager' && org.manager_id !== user.id) throw httpError(403, 'Это не ваш клиент')
+
+  const usersResult = await env.DB.prepare(`
+    SELECT u.id, u.email, u.name, ou.membership_status, u.created_at,
+      (SELECT COUNT(*) FROM requests r WHERE r.user_id = u.id) AS req_count
+    FROM organization_users ou
+    JOIN users u ON ou.user_id = u.id
+    WHERE ou.organization_id = ?
+  `).bind(id).all()
+
+  const reqResult = await env.DB.prepare(`
+    SELECT r.*, u.name AS client_name, u.email AS client_email
+    FROM requests r JOIN users u ON r.user_id = u.id
+    WHERE r.organization_id = ?
+    ORDER BY r.created_at DESC
+  `).bind(id).all()
+
+  const tasksResult = await env.DB.prepare(`
+    SELECT * FROM manager_tasks WHERE organization_id = ? ORDER BY created_at DESC
+  `).bind(id).all()
+
+  return json({ org, users: usersResult.results || [], requests: reqResult.results || [], tasks: tasksResult.results || [] })
+}
+
+async function handleAssignOrg(request, env, id) {
+  const user = await requireManagerContext(request, env)
+  const org = await env.DB.prepare('SELECT * FROM organizations WHERE id = ?').bind(id).first()
+  if (!org) throw httpError(404, 'Организация не найдена')
+
+  if (user.role === 'manager') {
+    if (org.manager_id !== null) throw httpError(409, 'У организации уже есть менеджер')
+    const result = await env.DB.prepare('UPDATE organizations SET manager_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND manager_id IS NULL').bind(user.id, id).run()
+    if (!result.meta.changes) throw httpError(409, 'Организация уже закреплена за другим менеджером')
+    await env.DB.prepare('INSERT INTO client_assignments (organization_id, previous_manager_id, new_manager_id, changed_by, reason) VALUES (?, ?, ?, ?, ?)').bind(id, org.manager_id, user.id, user.id, 'Забрал себе').run()
+    await audit(env, user.id, 'assign_manager', 'organization', id, `Менеджер ${user.id} забрал организацию`)
+  } else {
+    const body = await requestBody(request)
+    const newManagerId = body.manager_id ? Number(body.manager_id) : null
+    if (!newManagerId) throw httpError(400, 'Укажите manager_id')
+    const specialist = await findUserById(env, newManagerId)
+    if (!specialist) throw httpError(404, 'Менеджер не найден')
+    if (specialist.role !== 'manager' && specialist.role !== 'rof' && specialist.role !== 'admin') throw httpError(400, 'Пользователь не является менеджером')
+    await env.DB.prepare('UPDATE organizations SET manager_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(newManagerId, id).run()
+    await env.DB.prepare('INSERT INTO client_assignments (organization_id, previous_manager_id, new_manager_id, changed_by, reason) VALUES (?, ?, ?, ?, ?)').bind(id, org.manager_id, newManagerId, user.id, body.reason || 'Назначение РОФ').run()
+    await audit(env, user.id, 'assign_manager', 'organization', id, `РОФ назначил менеджера ${newManagerId}`)
+  }
+  return json({ ok: true })
+}
+
+async function handleUnassignOrg(request, env, id) {
+  const user = await requireRofContext(request, env)
+  const org = await env.DB.prepare('SELECT * FROM organizations WHERE id = ?').bind(id).first()
+  if (!org) throw httpError(404, 'Организация не найдена')
+  await env.DB.prepare('UPDATE organizations SET manager_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(id).run()
+  await env.DB.prepare('INSERT INTO client_assignments (organization_id, previous_manager_id, new_manager_id, changed_by, reason) VALUES (?, ?, NULL, ?, ?)').bind(id, org.manager_id, user.id, 'Снято РОФ').run()
+  await audit(env, user.id, 'unassign_manager', 'organization', id, 'Снятие менеджера')
+  return json({ ok: true })
+}
+
+async function handleServiceStatusUpdate(request, env, id) {
+  const user = await requireManagerContext(request, env)
+  const org = await env.DB.prepare('SELECT * FROM organizations WHERE id = ?').bind(id).first()
+  if (!org) throw httpError(404, 'Организация не найдена')
+  if (user.role === 'manager' && org.manager_id !== user.id) throw httpError(403, 'Это не ваш клиент')
+  const body = await requestBody(request)
+  const status = String(body.service_status || '').trim()
+  if (!['unknown', 'its_prof', 'fresh_prof', 'other_regular', 'no_regular_contract'].includes(status)) throw httpError(400, 'Недопустимый статус')
+  await env.DB.prepare('UPDATE organizations SET service_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(status, id).run()
+  await audit(env, user.id, 'change_service_status', 'organization', id, `Статус: ${status}`)
+  return json({ ok: true })
+}
+
+async function handlePendingUsers(request, env) {
+  const user = await requireManagerContext(request, env)
+  let result
+  if (user.role === 'manager') {
+    result = await env.DB.prepare(`
+      SELECT ou.*, u.email, u.name, u.inn, o.name AS org_name, o.inn AS org_inn
+      FROM organization_users ou
+      JOIN users u ON ou.user_id = u.id
+      JOIN organizations o ON ou.organization_id = o.id
+      WHERE ou.membership_status = 'pending' AND o.manager_id = ?
+      ORDER BY ou.created_at DESC
+    `).bind(user.id).all()
+  } else {
+    result = await env.DB.prepare(`
+      SELECT ou.*, u.email, u.name, u.inn, o.name AS org_name, o.inn AS org_inn
+      FROM organization_users ou
+      JOIN users u ON ou.user_id = u.id
+      JOIN organizations o ON ou.organization_id = o.id
+      WHERE ou.membership_status = 'pending'
+      ORDER BY ou.created_at DESC
+    `).all()
+  }
+  return json({ pending: result.results || [] })
+}
+
+async function handleApproveUser(request, env) {
+  const user = await requireManagerContext(request, env)
+  const body = await requestBody(request)
+  const orgId = Number(body.organization_id)
+  const userId = Number(body.user_id)
+  const action = String(body.action || '').trim()
+  if (!['active', 'rejected'].includes(action)) throw httpError(400, 'Допустимые действия: active, rejected')
+
+  const org = await env.DB.prepare('SELECT * FROM organizations WHERE id = ?').bind(orgId).first()
+  if (!org) throw httpError(404, 'Организация не найдена')
+  if (user.role === 'manager' && org.manager_id !== user.id) throw httpError(403, 'Это не ваш клиент')
+
+  await env.DB.prepare('UPDATE organization_users SET membership_status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP WHERE organization_id = ? AND user_id = ?').bind(action, user.id, orgId, userId).run()
+  await audit(env, user.id, 'approve_user', 'organization', orgId, `Пользователь ${userId}: ${action}`)
+  return json({ ok: true })
+}
+
+async function handleClientChatList(request, env) {
+  const user = await authenticate(request, env)
+  if (user.role === 'user') {
+    const org = await getOrgForUser(env, user.id)
+    if (!org) return json({ conversations: [] })
+    const conv = await env.DB.prepare(`
+      SELECT c.*, m.name AS manager_name, m.email AS manager_email,
+        (SELECT COUNT(*) FROM manager_messages WHERE conversation_id = c.id AND is_read = 0 AND sender_id != ?) AS unread
+      FROM manager_conversations c LEFT JOIN users m ON c.manager_id = m.id
+      WHERE c.client_user_id = ?
+    `).bind(user.id, user.id).all()
+    return json({ conversations: conv.results || [], org })
+  }
+  const result = await env.DB.prepare(`
+    SELECT c.*, o.name AS org_name, o.inn AS org_inn, u.name AS client_name, u.email AS client_email,
+      (SELECT COUNT(*) FROM manager_messages WHERE conversation_id = c.id AND is_read = 0 AND sender_id != ?) AS unread
+    FROM manager_conversations c
+    JOIN organizations o ON c.organization_id = o.id
+    JOIN users u ON c.client_user_id = u.id
+    WHERE c.manager_id = ? OR c.manager_id IS NULL
+    ORDER BY c.created_at DESC
+  `).bind(user.id, user.id).all()
+  return json({ conversations: result.results || [] })
+}
+
+async function handleClientChatMessages(request, env, convId) {
+  const user = await authenticate(request, env)
+  const conv = await env.DB.prepare('SELECT * FROM manager_conversations WHERE id = ?').bind(convId).first()
+  if (!conv) throw httpError(404, 'Чат не найден')
+  if (user.role === 'user' && conv.client_user_id !== user.id) throw httpError(403, 'Нет доступа')
+  if (user.role === 'manager' && conv.manager_id !== user.id) throw httpError(403, 'Нет доступа')
+  const result = await env.DB.prepare('SELECT * FROM manager_messages WHERE conversation_id = ? ORDER BY created_at ASC, id ASC').bind(convId).all()
+  if (user.role === 'user') {
+    await env.DB.prepare('UPDATE manager_messages SET is_read = 1, read_at = CURRENT_TIMESTAMP WHERE conversation_id = ? AND sender_id != ? AND is_read = 0').bind(convId, user.id).run()
+  }
+  return json({ conversation: conv, messages: result.results || [] })
+}
+
+async function handleClientChatSend(request, env) {
+  const user = await authenticate(request, env)
+  const body = await requestBody(request)
+  const text = String(body.text || '').trim()
+  if (!text) throw httpError(400, 'Сообщение пусто')
+  if (text.length > MAX_TEXT_LENGTH) throw httpError(400, 'Слишком длинно')
+
+  let convId
+  if (user.role === 'user') {
+    const org = await getOrgForUser(env, user.id)
+    if (!org) throw httpError(400, 'Организация не определена')
+    const conv = await findOrCreateConversation(env, org.id, user.id, org.manager_id)
+    convId = conv.id
+  } else {
+    convId = Number(body.conversation_id)
+    const conv = await env.DB.prepare('SELECT * FROM manager_conversations WHERE id = ?').bind(convId).first()
+    if (!conv) throw httpError(404, 'Чат не найден')
+    if (user.role === 'manager' && conv.manager_id !== user.id) throw httpError(403, 'Нет доступа')
+  }
+
+  const result = await env.DB.prepare('INSERT INTO manager_messages (conversation_id, sender_id, text) VALUES (?, ?, ?)').bind(convId, user.id, text).run()
+  await env.DB.prepare('UPDATE organizations SET last_activity_at = CURRENT_TIMESTAMP WHERE id = (SELECT organization_id FROM manager_conversations WHERE id = ?)').bind(convId).run()
+  return json({ message: { id: result.meta.last_row_id, conversation_id: convId, sender_id: user.id, text } }, 201)
+}
+
+async function handleCampaignList(request, env) {
+  await requireManagerContext(request, env)
+  const url = new URL(request.url)
+  const status = url.searchParams.get('status')
+  let sql = 'SELECT c.*, u.name AS author_name FROM campaigns c JOIN users u ON c.author_id = u.id'
+  const params = []
+  if (status) { sql += ' WHERE c.status = ?'; params.push(status) }
+  sql += ' ORDER BY c.created_at DESC'
+  const result = params.length ? await env.DB.prepare(sql).bind(...params).all() : await env.DB.prepare(sql).all()
+  return json({ campaigns: result.results || [] })
+}
+
+async function handleCampaignCreate(request, env) {
+  const user = await requireManagerContext(request, env)
+  const body = await requestBody(request)
+  const title = String(body.title || '').trim()
+  const fullText = String(body.full_text || '').trim()
+  if (!title || !fullText) throw httpError(400, 'Заголовок и текст обязательны')
+  const result = await env.DB.prepare(`
+    INSERT INTO campaigns (office_id, author_id, title, subject, short_text, full_text, category, action_type, action_label, start_date, end_date, status, target_status)
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(user.id, title, body.subject || null, body.short_text || null, fullText, body.category || 'info', body.action_type || null, body.action_label || null, body.start_date || null, body.end_date || null, body.status || 'draft', body.target_status || null).run()
+  await audit(env, user.id, 'create_campaign', 'campaign', result.meta.last_row_id, title)
+  return json({ id: result.meta.last_row_id }, 201)
+}
+
+async function handleCampaignActivate(request, env, id) {
+  const user = await requireManagerContext(request, env)
+  const campaign = await env.DB.prepare('SELECT * FROM campaigns WHERE id = ?').bind(id).first()
+  if (!campaign) throw httpError(404, 'Кампания не найдена')
+  let sql = `SELECT o.id AS org_id, u.id AS user_id FROM organizations o JOIN organization_users ou ON o.id = ou.organization_id JOIN users u ON ou.user_id = u.id WHERE ou.membership_status = 'active'`
+  const params = []
+  if (campaign.target_status === 'no_regular_contract') { sql += ' AND o.service_status = ?'; params.push('no_regular_contract') }
+  else if (campaign.target_status && campaign.target_status !== 'unknown') { sql += ' AND o.service_status = ?'; params.push(campaign.target_status) }
+  const targets = await env.DB.prepare(sql).bind(...params).all()
+  let count = 0
+  for (const t of targets.results || []) {
+    await env.DB.prepare('INSERT INTO campaign_deliveries (campaign_id, organization_id, user_id, delivered_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)').bind(id, t.org_id, t.user_id).run()
+    count++
+  }
+  await env.DB.prepare("UPDATE campaigns SET status = 'active' WHERE id = ?").bind(id).run()
+  await audit(env, user.id, 'activate_campaign', 'campaign', id, `Доставлено: ${count}`)
+  return json({ delivered: count })
+}
+
+async function handleCampaignDeliveries(request, env, id) {
+  await requireManagerContext(request, env)
+  const result = await env.DB.prepare(`
+    SELECT d.*, o.inn AS org_inn, o.name AS org_name, u.name AS user_name, u.email AS user_email
+    FROM campaign_deliveries d
+    JOIN organizations o ON d.organization_id = o.id
+    JOIN users u ON d.user_id = u.id
+    WHERE d.campaign_id = ?
+    ORDER BY d.created_at DESC
+  `).bind(id).all()
+  return json({ deliveries: result.results || [] })
+}
+
+async function handleClientFeed(request, env) {
+  const user = await authenticate(request, env)
+  if (user.role !== 'user') throw httpError(403, 'Только для клиентов')
+  const result = await env.DB.prepare(`
+    SELECT d.id, d.campaign_id, c.title, c.subject, c.short_text, c.full_text, c.category,
+      c.action_type, c.action_label, c.start_date, c.end_date, d.hidden,
+      u.name AS author_name, d.opened_at, d.clicked_at
+    FROM campaign_deliveries d
+    JOIN campaigns c ON d.campaign_id = c.id
+    JOIN users u ON c.author_id = u.id
+    WHERE d.user_id = ? AND d.hidden = 0 AND c.status = 'active'
+    ORDER BY d.delivered_at DESC
+  `).bind(user.id).all()
+  return json({ items: result.results || [] })
+}
+
+async function handleFeedAction(request, env, deliveryId) {
+  const user = await authenticate(request, env)
+  if (user.role !== 'user') throw httpError(403, 'Только для клиентов')
+  const body = await requestBody(request)
+  const action = String(body.action || '').trim()
+  if (action === 'open') {
+    await env.DB.prepare('UPDATE campaign_deliveries SET opened_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?').bind(deliveryId, user.id).run()
+  } else if (action === 'click') {
+    await env.DB.prepare('UPDATE campaign_deliveries SET clicked_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?').bind(deliveryId, user.id).run()
+  } else if (action === 'hide') {
+    await env.DB.prepare('UPDATE campaign_deliveries SET hidden = 1 WHERE id = ? AND user_id = ?').bind(deliveryId, user.id).run()
+  } else if (action === 'manager') {
+    const delivery = await env.DB.prepare('SELECT * FROM campaign_deliveries WHERE id = ? AND user_id = ?').bind(deliveryId, user.id).first()
+    if (!delivery) throw httpError(404, 'Материал не найден')
+    const org = await getOrgForUser(env, user.id)
+    if (org) {
+      const conv = await findOrCreateConversation(env, org.id, user.id, org.manager_id)
+      const camp = await env.DB.prepare('SELECT title FROM campaigns WHERE id = ?').bind(delivery.campaign_id).first()
+      await env.DB.prepare('INSERT INTO manager_messages (conversation_id, sender_id, text) VALUES (?, ?, ?)').bind(conv.id, user.id, `Интересует материал: ${camp?.title || ''}`).run()
+    }
+    await env.DB.prepare('UPDATE campaign_deliveries SET clicked_at = CURRENT_TIMESTAMP WHERE id = ?').bind(deliveryId).run()
+  }
+  return json({ ok: true })
+}
+
+async function handleManagerTasks(request, env) {
+  const user = await requireManagerContext(request, env)
+  const url = new URL(request.url)
+  const status = url.searchParams.get('status') || 'open'
+  const result = await env.DB.prepare(`
+    SELECT t.*, o.inn AS org_inn, o.name AS org_name, u.name AS client_name, u.email AS client_email
+    FROM manager_tasks t
+    LEFT JOIN organizations o ON t.organization_id = o.id
+    LEFT JOIN users u ON t.user_id = u.id
+    WHERE t.manager_id = ? AND t.status = ?
+    ORDER BY t.created_at DESC
+  `).bind(user.id, status).all()
+  return json({ tasks: result.results || [] })
+}
+
+async function handleTaskUpdate(request, env, id) {
+  const user = await requireManagerContext(request, env)
+  const task = await env.DB.prepare('SELECT * FROM manager_tasks WHERE id = ?').bind(id).first()
+  if (!task) throw httpError(404, 'Задача не найдена')
+  if (user.role === 'manager' && task.manager_id !== user.id) throw httpError(403, 'Не ваша задача')
+  const body = await requestBody(request)
+  const updates = {}
+  if (body.status && ['open', 'in_progress', 'done', 'cancelled'].includes(body.status)) updates.status = body.status
+  if (body.next_step !== undefined) updates.next_step = String(body.next_step || '').trim()
+  if (body.next_step_date !== undefined) updates.next_step_date = body.next_step_date || null
+  if (body.result !== undefined) { updates.result = String(body.result || '').trim(); updates.result_at = new Date().toISOString() }
+  if (Object.keys(updates).length) {
+    const assignments = Object.keys(updates).map(k => `${k} = ?`).join(', ')
+    await env.DB.prepare(`UPDATE manager_tasks SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(...Object.values(updates), id).run()
+  }
+  return json({ ok: true })
+}
+
+async function handleSpecialistTransferToManager(request, env, id) {
+  const user = await specialistContext(request, env)
+  const item = await getAnyRequest(env, id)
+  if (!item) throw httpError(404, 'Обращение не найдено')
+  if (item.assigned_to !== user.id && user.role !== 'admin') throw httpError(403, 'Вы не назначены на это обращение')
+  if (item.status === 'done') throw httpError(409, 'Обращение завершено')
+
+  const body = await requestBody(request)
+  const reason = String(body.reason || '').trim()
+  const diagnosis = String(body.diagnosis || '').trim()
+  const expectedResult = String(body.expected_result || '').trim()
+  const priority = String(body.priority || 'normal').trim()
+  if (!reason) throw httpError(400, 'Укажите причину выхода за границы L1')
+
+  const org = item.organization_id ? await env.DB.prepare('SELECT * FROM organizations WHERE id = ?').bind(item.organization_id).first() : null
+  const managerId = org?.manager_id || null
+
+  const taskResult = await env.DB.prepare(`
+    INSERT INTO manager_tasks (organization_id, user_id, manager_id, source, source_request_id, description, diagnosis, expected_result, priority, status)
+    VALUES (?, ?, ?, 'l1_transfer', ?, ?, ?, ?, ?, 'open')
+  `).bind(item.organization_id || null, item.user_id, managerId, item.id, reason, diagnosis, expectedResult, ['normal','high','critical'].includes(priority) ? priority : 'normal').run()
+  const taskId = taskResult.meta.last_row_id
+
+  await updateRequest(env, id, { status: 'manager_action', manager_task_id: taskId, out_of_l1_reason: reason })
+  await addMessage(env, id, 'system', 'Обращение передано менеджеру. Менеджер свяжется с вами по следующему шагу.')
+  await audit(env, user.id, 'l1_transfer', 'request', id, `Задача ${taskId}`)
+  return json({ task_id: taskId, request: await requestWithClientInfo(env, id) })
+}
+
+async function handleRofDashboard(request, env) {
+  await requireRofContext(request, env)
+  const [orgs, mgrs, unassigned, openReq, notHelped, l1Queue, tasks] = await env.DB.batch([
+    env.DB.prepare('SELECT COUNT(*) AS c FROM organizations'),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'manager'"),
+    env.DB.prepare('SELECT COUNT(*) AS c FROM organizations WHERE manager_id IS NULL'),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM requests WHERE status != 'done' AND status != 'cancelled'"),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM requests WHERE return_count > 0 AND status != 'done'"),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM requests WHERE level = 'l1' AND status = 'waiting'"),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM manager_tasks WHERE status = 'open'"),
+  ])
+  const managers = await env.DB.prepare(`
+    SELECT u.id, u.name, u.email,
+      (SELECT COUNT(*) FROM organizations o WHERE o.manager_id = u.id) AS client_count,
+      (SELECT COUNT(*) FROM manager_tasks t WHERE t.manager_id = u.id AND t.status = 'open') AS open_tasks,
+      (SELECT COUNT(*) FROM requests r JOIN organizations o ON r.organization_id = o.id WHERE o.manager_id = u.id AND r.status != 'done') AS open_requests
+    FROM users u WHERE u.role = 'manager'
+  `).all()
+  return json({
+    stats: {
+      orgs: orgs?.results?.[0]?.c || 0,
+      managers: mgrs?.results?.[0]?.c || 0,
+      unassigned: unassigned?.results?.[0]?.c || 0,
+      openRequests: openReq?.results?.[0]?.c || 0,
+      notHelped: notHelped?.results?.[0]?.c || 0,
+      l1Queue: l1Queue?.results?.[0]?.c || 0,
+      openTasks: tasks?.results?.[0]?.c || 0,
+    },
+    managers: managers.results || [],
+  })
+}
+
+async function handleRofClients(request, env) {
+  await requireRofContext(request, env)
+  const url = new URL(request.url)
+  const search = url.searchParams.get('search') || ''
+  let sql = `
+    SELECT o.*, m.name AS manager_name,
+      (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id) AS req_count,
+      (SELECT COUNT(*) FROM requests r WHERE r.organization_id = o.id AND r.status != 'done') AS open_req
+    FROM organizations o LEFT JOIN users m ON o.manager_id = m.id
+  `
+  const params = []
+  if (search.trim()) {
+    sql += ' WHERE o.inn LIKE ? OR o.name LIKE ?'
+    const p = `%${search.trim()}%`
+    params.push(p, p)
+  }
+  sql += ' ORDER BY o.created_at DESC'
+  const result = params.length ? await env.DB.prepare(sql).bind(...params).all() : await env.DB.prepare(sql).all()
+  return json({ clients: result.results || [] })
+}
+
+async function handleRofL1Queue(request, env) {
+  await requireRofContext(request, env)
+  const url = new URL(request.url)
+  const filter = url.searchParams.get('filter') || 'all'
+  const filters = {
+    'waiting': "r.status = 'waiting'",
+    'in-progress': "r.status = 'in_progress'",
+    'need-data': "r.status = 'need_data'",
+    'result-ready': "r.status = 'result_ready'",
+    'returned': "r.status = 'returned'",
+    'manager-action': "r.status = 'manager_action'",
+    'all': "1=1",
+  }
+  const sql = `
+    SELECT r.*, u.email AS client_email, u.name AS client_name, u.inn AS client_inn,
+      s.name AS specialist_name, o.name AS org_name
+    FROM requests r
+    JOIN users u ON r.user_id = u.id
+    LEFT JOIN users s ON r.assigned_to = s.id
+    LEFT JOIN organizations o ON r.organization_id = o.id
+    WHERE r.level = 'l1' AND (${filters[filter] || filters.all})
+    ORDER BY r.created_at DESC
+  `
+  const result = await env.DB.prepare(sql).all()
+  return json({ requests: result.results || [] })
 }
 
 async function handleApi(request, env) {
@@ -823,6 +1387,50 @@ async function handleApi(request, env) {
   if (match && method === 'POST') return handleSpecialistNeedData(request, env, Number(match[1]))
   match = path.match(/^\/specialist\/requests\/(\d+)\/result$/)
   if (match && method === 'POST') return handleSpecialistResult(request, env, Number(match[1]))
+  match = path.match(/^\/specialist\/requests\/(\d+)\/transfer-to-manager$/)
+  if (match && method === 'POST') return handleSpecialistTransferToManager(request, env, Number(match[1]))
+
+  // Manager routes
+  if (method === 'GET' && path === '/manager/dashboard') return handleManagerDashboard(request, env)
+  if (method === 'GET' && path === '/manager/clients') return handleManagerClients(request, env)
+  if (method === 'GET' && path === '/manager/pending-users') return handlePendingUsers(request, env)
+  if (method === 'POST' && path === '/manager/approve-user') return handleApproveUser(request, env)
+  if (method === 'GET' && path === '/manager/tasks') return handleManagerTasks(request, env)
+
+  match = path.match(/^\/manager\/orgs\/(\d+)$/)
+  if (match && method === 'GET') return handleOrgDetail(request, env, Number(match[1]))
+  match = path.match(/^\/manager\/orgs\/(\d+)\/assign$/)
+  if (match && method === 'POST') return handleAssignOrg(request, env, Number(match[1]))
+  match = path.match(/^\/manager\/orgs\/(\d+)\/unassign$/)
+  if (match && method === 'POST') return handleUnassignOrg(request, env, Number(match[1]))
+  match = path.match(/^\/manager\/orgs\/(\d+)\/service-status$/)
+  if (match && method === 'POST') return handleServiceStatusUpdate(request, env, Number(match[1]))
+  match = path.match(/^\/manager\/tasks\/(\d+)$/)
+  if (match && method === 'POST') return handleTaskUpdate(request, env, Number(match[1]))
+
+  // Manager chat
+  if (method === 'GET' && path === '/chat/list') return handleClientChatList(request, env)
+  if (method === 'POST' && path === '/chat/send') return handleClientChatSend(request, env)
+  match = path.match(/^\/chat\/(\d+)\/messages$/)
+  if (match && method === 'GET') return handleClientChatMessages(request, env, Number(match[1]))
+
+  // Campaigns
+  if (method === 'GET' && path === '/campaigns') return handleCampaignList(request, env)
+  if (method === 'POST' && path === '/campaigns') return handleCampaignCreate(request, env)
+  match = path.match(/^\/campaigns\/(\d+)\/deliveries$/)
+  if (match && method === 'GET') return handleCampaignDeliveries(request, env, Number(match[1]))
+  match = path.match(/^\/campaigns\/(\d+)\/activate$/)
+  if (match && method === 'POST') return handleCampaignActivate(request, env, Number(match[1]))
+
+  // Client feed
+  if (method === 'GET' && path === '/feed') return handleClientFeed(request, env)
+  match = path.match(/^\/feed\/(\d+)\/action$/)
+  if (match && method === 'POST') return handleFeedAction(request, env, Number(match[1]))
+
+  // ROF routes
+  if (method === 'GET' && path === '/rof/dashboard') return handleRofDashboard(request, env)
+  if (method === 'GET' && path === '/rof/clients') return handleRofClients(request, env)
+  if (method === 'GET' && path === '/rof/l1-queue') return handleRofL1Queue(request, env)
 
   return json({ error: 'API endpoint not found' }, 404)
 }

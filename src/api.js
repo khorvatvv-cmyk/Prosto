@@ -107,6 +107,7 @@ export const adminApi = {
   }, { maxAttempts: 1, timeoutMs: 30000 }),
   setUserRole: (id, role) => api(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }, { maxAttempts: 1 }),
   createSpecialist: (email, password, name) => api('/admin/specialists', { method: 'POST', body: JSON.stringify({ email, password, name }) }, { maxAttempts: 1, timeoutMs: 15000 }),
+  createManager: (email, password, name) => api('/admin/specialists', { method: 'POST', body: JSON.stringify({ email, password, name, role: 'manager' }) }, { maxAttempts: 1, timeoutMs: 15000 }),
   assignSpecialist: (id, specialistId) => api(`/admin/requests/${id}/assign`, { method: 'POST', body: JSON.stringify({ specialist_id: specialistId }) }, { maxAttempts: 1 }),
 }
 
@@ -120,6 +121,44 @@ export const specialistApi = {
   internalNote: (id, text) => api(`/specialist/requests/${id}/internal-note`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1 }),
   needData: (id, text) => api(`/specialist/requests/${id}/need-data`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1 }),
   result: (id, text) => api(`/specialist/requests/${id}/result`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1 }),
+  transferToManager: (id, data) => api(`/specialist/requests/${id}/transfer-to-manager`, { method: 'POST', body: JSON.stringify(data) }, { maxAttempts: 1 }),
+}
+
+export const managerApi = {
+  dashboard: () => api('/manager/dashboard'),
+  clients: (tab) => api(`/manager/clients${tab ? `?tab=${tab}` : ''}`),
+  orgDetail: (id) => api(`/manager/orgs/${id}`),
+  assignOrg: (id, managerId) => api(`/manager/orgs/${id}/assign`, { method: 'POST', body: JSON.stringify({ manager_id: managerId }) }, { maxAttempts: 1 }),
+  unassignOrg: (id) => api(`/manager/orgs/${id}/unassign`, { method: 'POST' }, { maxAttempts: 1 }),
+  serviceStatus: (id, status) => api(`/manager/orgs/${id}/service-status`, { method: 'POST', body: JSON.stringify({ service_status: status }) }, { maxAttempts: 1 }),
+  pendingUsers: () => api('/manager/pending-users'),
+  approveUser: (orgId, userId, action) => api('/manager/approve-user', { method: 'POST', body: JSON.stringify({ organization_id: orgId, user_id: userId, action }) }, { maxAttempts: 1 }),
+  tasks: (status) => api(`/manager/tasks${status ? `?status=${status}` : ''}`),
+  updateTask: (id, data) => api(`/manager/tasks/${id}`, { method: 'POST', body: JSON.stringify(data) }, { maxAttempts: 1 }),
+}
+
+export const rofApi = {
+  dashboard: () => api('/rof/dashboard'),
+  clients: (search) => api(`/rof/clients${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  l1Queue: (filter) => api(`/rof/l1-queue${filter ? `?filter=${filter}` : ''}`),
+}
+
+export const chatApi = {
+  list: () => api('/chat/list'),
+  messages: (convId) => api(`/chat/${convId}/messages`),
+  send: (text, convId) => api('/chat/send', { method: 'POST', body: JSON.stringify({ text, conversation_id: convId }) }),
+}
+
+export const campaignApi = {
+  list: (status) => api(`/campaigns${status ? `?status=${status}` : ''}`),
+  create: (data) => api('/campaigns', { method: 'POST', body: JSON.stringify(data) }, { maxAttempts: 1 }),
+  deliveries: (id) => api(`/campaigns/${id}/deliveries`),
+  activate: (id) => api(`/campaigns/${id}/activate`, { method: 'POST' }, { maxAttempts: 1, timeoutMs: 30000 }),
+}
+
+export const feedApi = {
+  list: () => api('/feed'),
+  action: (deliveryId, action) => api(`/feed/${deliveryId}/action`, { method: 'POST', body: JSON.stringify({ action }) }, { maxAttempts: 1 }),
 }
 
 export const requestsApi = {

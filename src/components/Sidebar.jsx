@@ -1,6 +1,6 @@
-import { MessageCircle, Star, Bell, User, Phone, LogOut } from 'lucide-react'
+import { MessageCircle, Star, Bell, User, Phone, LogOut, Headphones } from 'lucide-react'
 
-export default function Sidebar({ onNavigate, onOpenManager, page, onLogout }) {
+export default function Sidebar({ onNavigate, onOpenManager, page, onLogout, user }) {
   const A = 'var(--color-accent)'
   const INK = 'var(--color-ink)'
   const INK_MUTED = 'var(--color-ink-muted)'
@@ -12,6 +12,7 @@ export default function Sidebar({ onNavigate, onOpenManager, page, onLogout }) {
     { id: 'dashboard', label: 'Мои вопросы', icon: MessageCircle, action: () => onNavigate('dashboard') },
     { id: 'important', label: 'Важное для вас', icon: Star, action: () => onNavigate('important') },
     { id: 'notifs', label: 'Уведомления', icon: Bell, action: () => onNavigate('notifs') },
+    ...((user?.role === 'specialist' || user?.role === 'admin') ? [{ id: 'specialist', label: 'Рабочее место L1', icon: Headphones, action: () => onNavigate('specialist') }] : []),
   ]
 
   const itemStyle = (active) => ({

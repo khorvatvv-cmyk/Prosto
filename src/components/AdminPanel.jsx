@@ -63,6 +63,15 @@ export default function AdminPanel() {
     }
   }
 
+  async function changeRole(userId, role) {
+    try {
+      await adminApi.setUserRole(userId, role)
+      await load()
+    } catch (e) {
+      console.error('Role change error:', e)
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: 40, textAlign: 'center', color: M }}>Загрузка админ-панели…</div>
   }
@@ -190,6 +199,7 @@ export default function AdminPanel() {
                 <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>ИНН</th>
                 <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Роль</th>
                 <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Создан</th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Действие</th>
               </tr>
             </thead>
             <tbody>
@@ -200,11 +210,25 @@ export default function AdminPanel() {
                   <td style={{ padding: '10px 16px', fontSize: 13 }}>{u.name || '—'}</td>
                   <td style={{ padding: '10px 16px', fontSize: 13, color: M }}>{u.inn || '—'}</td>
                   <td style={{ padding: '10px 16px', fontSize: 13 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, background: u.role === 'admin' ? '#FFF0F7' : S2, color: u.role === 'admin' ? A : M }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, background: u.role === 'admin' ? '#FFF0F7' : u.role === 'specialist' ? '#F0FDF4' : S2, color: u.role === 'admin' ? A : u.role === 'specialist' ? '#16A34A' : M }}>
                       {u.role || 'user'}
                     </span>
                   </td>
                   <td style={{ padding: '10px 16px', fontSize: 13, color: M }}>{formatDate(u.created_at)}</td>
+                  <td style={{ padding: '10px 16px', fontSize: 13 }}>
+                    {u.role !== 'admin' ? (
+                      <select
+                        value={u.role || 'user'}
+                        onChange={(e) => changeRole(u.id, e.target.value)}
+                        style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: `1px solid ${BD}`, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
+                      >
+                        <option value="user">Клиент</option>
+                        <option value="specialist">Специалист L1</option>
+                      </select>
+                    ) : (
+                      <span style={{ fontSize: 12, color: L }}>—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

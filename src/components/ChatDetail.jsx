@@ -115,14 +115,26 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   }
 
   const isL0 = activeRequest.level === 'l0' && activeRequest.status !== 'done'
+  const isL1 = activeRequest.level === 'l1' && activeRequest.status !== 'done'
   const isDone = activeRequest.status === 'done'
   const assistantMessages = messages.filter(m => m.sender === 'assistant')
   const hasAssistantReply = assistantMessages.length > 0
-  const showEvaluation = isL0 && hasAssistantReply && !isDone
-  const showComposer = !isDone && isL0 && hasAssistantReply && !waitingAssistant
+  const isResultReady = activeRequest.status === 'result_ready'
+  const showL1Buttons = isL0 && hasAssistantReply && !isDone
+  const showComposer = !isDone && !waitingAssistant && ((isL0 && hasAssistantReply) || (isL1 && activeRequest.status !== 'result_ready'))
 
-  const badgeText = isDone ? 'Решено' : isL0 ? 'Ищем решение' : 'В работе'
-  const badgeColor = isDone ? M : isL0 ? A : INK
+  const STATUS_LABELS = {
+    'open': 'Открыто',
+    'waiting': 'Ожидает специалиста',
+    'in_progress': 'Специалист работает',
+    'need_data': 'Нужны данные',
+    'result_ready': 'Результат готов',
+    'returned': 'Возвращено в работу',
+    'done': 'Решено',
+  }
+
+  const badgeText = isDone ? 'Решено' : isL0 ? 'Ищем решение' : (STATUS_LABELS[activeRequest.status] || 'В работе')
+  const badgeColor = isDone ? M : isL0 ? A : (['waiting', 'need_data', 'returned'].includes(activeRequest.status) ? A : INK)
   const badgeBg = isDone ? S2 : isL0 ? '#FFF0F7' : S2
 
   return (
@@ -144,6 +156,9 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Канал</div>
             <div style={{ fontSize: 14, color: INK }}>{isL0 ? 'Ассистент ПРОСТО' : 'Специалист'}</div>
+            {isL1 && activeRequest.assigned_to && (
+              <div style={{ fontSize: 12, color: M, marginTop: 2 }}>{STATUS_LABELS[activeRequest.status] || ''}</div>
+            )}
           </div>
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: L, marginBottom: 8 }}>Вопрос</div>
@@ -224,8 +239,8 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                   </div>
                 )}
 
-                {/* Evaluation buttons — only after 3+ user messages */}
-                {showEvaluation && (
+                {/* L0 evaluation buttons — Помогло / Подключить специалиста */}
+                {showL1Buttons && (
                   <div style={{ marginTop: 8, padding: '12px 16px', background: S2, borderRadius: 10, alignSelf: 'center', maxWidth: 420 }}>
                     <div style={{ fontSize: 13, color: M, marginBottom: 10, textAlign: 'center' }}>Помогло решение?</div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -239,7 +254,28 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
                         onMouseEnter={e=>{e.currentTarget.style.background=A;e.currentTarget.style.color='#fff';e.currentTarget.style.borderColor=A}}
                         onMouseLeave={e=>{e.currentTarget.style.background=S;e.currentTarget.style.color=INK;e.currentTarget.style.borderColor='#D4D4D8'}}>
-                        <AlertCircle size={16} /> Нет, нужна помощь
+                        <AlertCircle size={16} /> Подключить специалиста
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* L1 result confirmation — Решено / Не помогло */}
+                {isResultReady && !isDone && (
+                  <div style={{ marginTop: 8, padding: '12px 16px', background: '#F0FDF4', borderRadius: 10, alignSelf: 'center', maxWidth: 420, border: '1px solid #BBF7D0' }}>
+                    <div style={{ fontSize: 13, color: M, marginBottom: 10, textAlign: 'center' }}>Специалист передал результат. Помогло?</div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                      <button onClick={() => handleEvaluate(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
+                        onMouseEnter={e=>{e.currentTarget.style.background=INK;e.currentTarget.style.color='#fff'}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=S;e.currentTarget.style.color=INK}}>
+                        <CheckCircle2 size={16} /> Проблема решена
+                      </button>
+                      <button onClick={() => handleEvaluate(false)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #D4D4D8', background: S, color: INK, fontSize: 14, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .2s' }}
+                        onMouseEnter={e=>{e.currentTarget.style.background=A;e.currentTarget.style.color='#fff';e.currentTarget.style.borderColor=A}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=S;e.currentTarget.style.color=INK;e.currentTarget.style.borderColor='#D4D4D8'}}>
+                        <AlertCircle size={16} /> Не помогло
                       </button>
                     </div>
                   </div>
@@ -259,7 +295,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
           {showComposer && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 22px', borderTop: `1px solid ${BD}`, background: S }}>
               <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-                placeholder="Уточните вопрос или задайте новый…"
+                placeholder={isL1 ? 'Напишите сообщение специалисту…' : 'Уточните вопрос или задайте новый…'}
                 style={{ flex: 1, border: `1px solid ${BD}`, background: S2, fontSize: 14, fontFamily: 'inherit', outline: 'none', color: INK, padding: '11px 15px', borderRadius: 8, transition: 'all .2s' }}
                 onFocus={e => { e.target.style.borderColor = A; e.target.style.boxShadow = '0 0 0 4px rgba(229,0,113,.1)' }}
                 onBlur={e => { e.target.style.borderColor = BD; e.target.style.boxShadow = 'none' }} />

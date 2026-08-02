@@ -15,6 +15,7 @@ import Sidebar from './components/Sidebar.jsx'
 import MobileTabbar from './components/MobileTabbar.jsx'
 import AdminPanel from './components/AdminPanel.jsx'
 import OnboardingProfile from './components/OnboardingProfile.jsx'
+import SpecialistPanel from './components/SpecialistPanel.jsx'
 
 export default function App() {
   const { user, setUser, loading, login, register: rawRegister, logout } = useAuth()
@@ -116,7 +117,7 @@ export default function App() {
     <div className="h-screen flex flex-col bg-[var(--color-bg)]">
       <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} />
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} onLogout={logout} />
+        <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} onLogout={logout} user={user} />
         <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-8 pb-20" style={{ scrollBehavior: 'smooth' }}>
           <div className="max-w-[1060px] mx-auto">
             {page === 'dashboard' && (
@@ -153,6 +154,9 @@ export default function App() {
             )}
             {page === 'admin' && user?.role === 'admin' && (
               <AdminPanel user={user} />
+            )}
+            {page === 'specialist' && (user?.role === 'specialist' || user?.role === 'admin') && (
+              <SpecialistPanel user={user} showToast={showToast} />
             )}
           </div>
         </main>

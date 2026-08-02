@@ -1,4 +1,4 @@
-import { LayoutGrid, Plus, Star, Bell, User, ShieldCheck } from 'lucide-react';
+import { LayoutGrid, Plus, Star, Bell, User, ShieldCheck, Headphones } from 'lucide-react';
 
 const ACCENT = 'var(--color-accent)';
 const INK_MUTED = 'var(--color-ink-muted)';
@@ -46,8 +46,10 @@ function Tab({ tab, page, onNavigate }) {
 
 export default function MobileTabbar({ onNavigate, page, user }) {
   const tabs = user?.role === 'admin'
-    ? [...TABS, { key: 'admin', label: 'Админ', icon: ShieldCheck }]
-    : TABS
+    ? [...TABS, { key: 'specialist', label: 'L1', icon: Headphones }, { key: 'admin', label: 'Админ', icon: ShieldCheck }]
+    : user?.role === 'specialist'
+      ? [...TABS, { key: 'specialist', label: 'L1', icon: Headphones }]
+      : TABS
 
   return (
     <nav

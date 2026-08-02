@@ -105,6 +105,20 @@ export const adminApi = {
     method: 'POST',
     body: JSON.stringify({ message }),
   }, { maxAttempts: 1, timeoutMs: 30000 }),
+  setUserRole: (id, role) => api(`/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }, { maxAttempts: 1 }),
+  assignSpecialist: (id, specialistId) => api(`/admin/requests/${id}/assign`, { method: 'POST', body: JSON.stringify({ specialist_id: specialistId }) }, { maxAttempts: 1 }),
+}
+
+export const specialistApi = {
+  queue: (filter, search) => api(`/specialist/queue${filter || search ? '?' + new URLSearchParams({ filter: filter || 'waiting', ...(search ? { search } : {}) }).toString() : ''}`),
+  myRequests: () => api('/specialist/my-requests'),
+  requestDetail: (id) => api(`/specialist/requests/${id}`),
+  take: (id) => api(`/specialist/requests/${id}/take`, { method: 'POST' }, { maxAttempts: 1 }),
+  release: (id) => api(`/specialist/requests/${id}/release`, { method: 'POST' }, { maxAttempts: 1 }),
+  sendMessage: (id, text) => api(`/specialist/requests/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1 }),
+  internalNote: (id, text) => api(`/specialist/requests/${id}/internal-note`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1 }),
+  needData: (id, text) => api(`/specialist/requests/${id}/need-data`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1 }),
+  result: (id, text) => api(`/specialist/requests/${id}/result`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1 }),
 }
 
 export const requestsApi = {

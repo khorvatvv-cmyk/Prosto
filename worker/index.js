@@ -118,27 +118,29 @@ async function getAnyRequest(env, id) {
   return env.DB.prepare('SELECT * FROM requests WHERE id = ?').bind(id).first()
 }
 
-async function getMessages(env, requestId) {
-  const result = await env.DB.prepare(
-    'SELECT * FROM messages WHERE request_id = ? ORDER BY created_at ASC, id ASC',
-  ).bind(requestId).all()
+async function getMessages(env, requestId, includeInternal = true) {
+  const sql = includeInternal
+    ? 'SELECT * FROM messages WHERE request_id = ? ORDER BY created_at ASC, id ASC'
+    : 'SELECT * FROM messages WHERE request_id = ? AND (is_internal = 0 OR is_internal IS NULL) ORDER BY created_at ASC, id ASC'
+  const result = await env.DB.prepare(sql).bind(requestId).all()
   return result.results || []
 }
 
-async function addMessage(env, requestId, sender, text) {
+async function addMessage(env, requestId, sender, text, isInternal = false) {
   const result = await env.DB.prepare(
-    'INSERT INTO messages (request_id, sender, text) VALUES (?, ?, ?)',
-  ).bind(requestId, sender, text).run()
+    'INSERT INTO messages (request_id, sender, text, is_internal) VALUES (?, ?, ?, ?)',
+  ).bind(requestId, sender, text, isInternal ? 1 : 0).run()
   return {
     id: result.meta.last_row_id,
     requestId,
     sender,
     text,
+    is_internal: isInternal ? 1 : 0,
   }
 }
 
 async function updateRequest(env, id, updates) {
-  const allowedKeys = ['status', 'level', 'title', 'description', 'assistant_thread_id']
+  const allowedKeys = ['status', 'level', 'title', 'description', 'assistant_thread_id', 'assigned_to', 'l1_transferred_at', 'l1_taken_at', 'last_message_at', 'result_message']
   const entries = Object.entries(updates).filter(([key]) => allowedKeys.includes(key))
   if (entries.length) {
     const assignments = entries.map(([key]) => `${key} = ?`).join(', ')
@@ -283,7 +285,7 @@ async function handleInitialAssistantAnswer(request, env, id) {
   const assistantMessage = await addMessage(env, id, 'assistant', result.text)
   const updatedRequest = await updateRequest(env, id, {
     ...(result.threadId ? { assistant_thread_id: result.threadId } : {}),
-    ...(!result.available ? { status: 'waiting', level: 'l1' } : {}),
+    ...(!result.available ? { status: 'waiting', level: 'l1', l1_transferred_at: new Date().toISOString() } : {}),
   })
   return json({ message: assistantMessage, request: updatedRequest, available: result.available })
 }
@@ -297,8 +299,8 @@ async function handleManagerMessage(request, env) {
 
   const title = text.length > 80 ? `${text.slice(0, 77)}…` : text
   const created = await env.DB.prepare(
-    "INSERT INTO requests (user_id, title, description, status, level) VALUES (?, ?, ?, 'waiting', 'l1')",
-  ).bind(user.id, title, text).run()
+    "INSERT INTO requests (user_id, title, description, status, level, l1_transferred_at) VALUES (?, ?, ?, 'waiting', 'l1', ?)",
+  ).bind(user.id, title, text, new Date().toISOString()).run()
   const requestId = created.meta.last_row_id
   await addMessage(env, requestId, 'user', text)
   await addMessage(env, requestId, 'system', 'Сообщение передано команде сопровождения. Повторно описывать вопрос не нужно.')
@@ -309,7 +311,7 @@ async function handleRequestDetail(request, env, id) {
   const user = await authenticate(request, env)
   const item = await getRequestForUser(env, id, user.id)
   if (!item) throw httpError(404, 'Вопрос не найден')
-  return json({ request: item, messages: await getMessages(env, id) })
+  return json({ request: item, messages: await getMessages(env, id, false) })
 }
 
 async function handleRequestMessage(request, env, id) {
@@ -323,6 +325,7 @@ async function handleRequestMessage(request, env, id) {
   if (!text) throw httpError(400, 'Сообщение пустое')
   if (text.length > MAX_TEXT_LENGTH) throw httpError(400, 'Сократите сообщение до 10 000 символов')
   await addMessage(env, id, 'user', text)
+  await updateRequest(env, id, { last_message_at: new Date().toISOString() })
 
   if (item.level === 'l0') {
     const fullUser = await findUserById(env, user.id)
@@ -331,9 +334,17 @@ async function handleRequestMessage(request, env, id) {
     await addMessage(env, id, 'assistant', result.text)
     await updateRequest(env, id, {
       ...(result.threadId ? { assistant_thread_id: result.threadId } : {}),
-      ...(!result.available ? { status: 'waiting', level: 'l1' } : {}),
+      ...(!result.available ? { status: 'waiting', level: 'l1', l1_transferred_at: new Date().toISOString() } : {}),
     })
     return json({ message: { sender: 'assistant', text: result.text } })
+  }
+
+  if (item.level === 'l1') {
+    if (item.status === 'need_data') {
+      await updateRequest(env, id, { status: 'in_progress' })
+      await addMessage(env, id, 'system', 'Клиент предоставил дополнительные данные. Обращение вернулось в работу.')
+    }
+    return json({ message: null })
   }
   return json({ message: null })
 }
@@ -348,8 +359,16 @@ async function handleRequestEvaluation(request, env, id) {
     await updateRequest(env, id, { status: 'done' })
     await addMessage(env, id, 'system', 'Вопрос решён')
   } else if (body.helped === false) {
-    await updateRequest(env, id, { status: 'waiting', level: 'l1' })
-    await addMessage(env, id, 'system', 'Подключаем специалиста. Повторно описывать не нужно.')
+    if (item.level === 'l0') {
+      await updateRequest(env, id, { status: 'waiting', level: 'l1', l1_transferred_at: new Date().toISOString() })
+      await addMessage(env, id, 'system', 'Подключаем специалиста. Повторно описывать не нужно.')
+    } else if (item.level === 'l1') {
+      if (item.status !== 'result_ready') throw httpError(400, 'Подтверждение результата доступно только когда результат готов')
+      await updateRequest(env, id, { status: 'returned' })
+      await addMessage(env, id, 'system', 'Клиент сообщил, что решение не помогло. Обращение вернулось в работу.')
+    } else {
+      throw httpError(400, 'Неверное действие для текущего состояния')
+    }
   } else {
     throw httpError(400, 'Передайте helped: true или false')
   }
@@ -486,6 +505,217 @@ async function handleAdminAssistantTest(request, env) {
   return json(await askAssistant(message, null, env))
 }
 
+function requireSpecialist(user) {
+  if (user.role !== 'specialist' && user.role !== 'admin') throw httpError(403, 'Доступ только для специалиста')
+}
+
+async function specialistContext(request, env) {
+  const user = await authenticate(request, env)
+  requireSpecialist(user)
+  return user
+}
+
+async function requestWithClientInfo(env, requestId) {
+  return env.DB.prepare(`
+    SELECT r.*, u.email AS client_email, u.name AS client_name, u.inn AS client_inn,
+      u.organization AS client_organization, u.activity_type, u.software_product,
+      u.product_version, u.config_type, u.customizations,
+      s.name AS specialist_name
+    FROM requests r
+    LEFT JOIN users u ON r.user_id = u.id
+    LEFT JOIN users s ON r.assigned_to = s.id
+    WHERE r.id = ?
+  `).bind(requestId).first()
+}
+
+async function handleSpecialistQueue(request, env) {
+  await specialistContext(request, env)
+  const url = new URL(request.url)
+  const filter = url.searchParams.get('filter') || 'waiting'
+  const search = url.searchParams.get('search') || ''
+
+  let sql = `
+    SELECT r.*, u.email AS client_email, u.name AS client_name, u.inn AS client_inn,
+      u.organization AS client_organization, u.activity_type, u.software_product,
+      u.product_version, u.config_type, u.customizations
+    FROM requests r
+    LEFT JOIN users u ON r.user_id = u.id
+    WHERE r.level = 'l1'
+  `
+  const params = []
+  const validFilters = {
+    waiting: "r.status = 'waiting'",
+    'in-progress': "r.status = 'in_progress'",
+    'need-data': "r.status = 'need_data'",
+    'result-ready': "r.status = 'result_ready'",
+    returned: "r.status = 'returned'",
+    done: "r.status = 'done'",
+    all: "1=1",
+  }
+  sql += ` AND (${validFilters[filter] || validFilters.waiting})`
+
+  if (search.trim()) {
+    sql += ` AND (u.name LIKE ? OR u.inn LIKE ? OR r.title LIKE ? OR u.organization LIKE ?)`
+    const pattern = `%${search.trim()}%`
+    params.push(pattern, pattern, pattern, pattern)
+  }
+
+  if (filter === 'waiting') {
+    sql += ` ORDER BY r.l1_transferred_at ASC, r.created_at ASC, r.id ASC`
+  } else {
+    sql += ` ORDER BY r.last_message_at DESC, r.created_at DESC, r.id DESC`
+  }
+
+  const stmt = env.DB.prepare(sql)
+  const result = params.length ? await stmt.bind(...params).all() : await stmt.all()
+  return json({ requests: result.results || [] })
+}
+
+async function handleSpecialistMyRequests(request, env) {
+  const user = await specialistContext(request, env)
+  const result = await env.DB.prepare(`
+    SELECT r.*, u.email AS client_email, u.name AS client_name, u.inn AS client_inn,
+      u.organization AS client_organization, u.activity_type, u.software_product,
+      u.product_version, u.config_type, u.customizations
+    FROM requests r
+    LEFT JOIN users u ON r.user_id = u.id
+    WHERE r.assigned_to = ? AND r.level = 'l1' AND r.status != 'done'
+    ORDER BY r.last_message_at DESC, r.created_at DESC, r.id DESC
+  `).bind(user.id).all()
+  return json({ requests: result.results || [] })
+}
+
+async function handleSpecialistRequestDetail(request, env, id) {
+  await specialistContext(request, env)
+  const item = await requestWithClientInfo(env, id)
+  if (!item) throw httpError(404, 'Обращение не найдено')
+  if (item.level !== 'l1' && item.level !== 'l0') throw httpError(400, 'Это обращение не на линии L1')
+  return json({ request: item, messages: await getMessages(env, id, true) })
+}
+
+async function handleSpecialistTake(request, env, id) {
+  const user = await specialistContext(request, env)
+  const item = await getAnyRequest(env, id)
+  if (!item) throw httpError(404, 'Обращение не найдено')
+  if (item.level !== 'l1') throw httpError(400, 'Это обращение не на линии L1')
+  if (item.status !== 'waiting' && item.status !== 'returned') throw httpError(400, 'Обращение уже в работе или завершено')
+  if (item.assigned_to && item.assigned_to !== user.id && item.status !== 'returned') {
+    const specialist = await findUserById(env, item.assigned_to)
+    throw httpError(409, `Обращение уже взял: ${specialist?.name || specialist?.email || 'другой специалист'}`)
+  }
+  await updateRequest(env, id, { assigned_to: user.id, status: 'in_progress', l1_taken_at: new Date().toISOString() })
+  await addMessage(env, id, 'system', `Специалист ${user.name || user.email} принял обращение в работу.`)
+  return json({ request: await requestWithClientInfo(env, id) })
+}
+
+async function handleSpecialistRelease(request, env, id) {
+  const user = await specialistContext(request, env)
+  const item = await getAnyRequest(env, id)
+  if (!item) throw httpError(404, 'Обращение не найдено')
+  if (item.assigned_to !== user.id && user.role !== 'admin') throw httpError(403, 'Вы не назначены на это обращение')
+  await updateRequest(env, id, { assigned_to: null, status: 'waiting', l1_taken_at: null })
+  await addMessage(env, id, 'system', 'Обращение возвращено в общую очередь.')
+  return json({ request: await requestWithClientInfo(env, id) })
+}
+
+async function handleSpecialistMessage(request, env, id) {
+  const user = await specialistContext(request, env)
+  const item = await getAnyRequest(env, id)
+  if (!item) throw httpError(404, 'Обращение не найдено')
+  if (item.assigned_to !== user.id && user.role !== 'admin') throw httpError(403, 'Вы не назначены на это обращение')
+  if (item.status === 'done') throw httpError(409, 'Обращение завершено')
+
+  const body = await requestBody(request)
+  const text = String(body.text || '').trim()
+  if (!text) throw httpError(400, 'Сообщение пустое')
+  if (text.length > MAX_TEXT_LENGTH) throw httpError(400, 'Сократите сообщение до 10 000 символов')
+
+  const msg = await addMessage(env, id, 'specialist', text)
+  await updateRequest(env, id, { last_message_at: new Date().toISOString() })
+  if (item.status === 'returned') {
+    await updateRequest(env, id, { status: 'in_progress' })
+  }
+  return json({ message: msg }, 201)
+}
+
+async function handleSpecialistInternalNote(request, env, id) {
+  const user = await specialistContext(request, env)
+  const item = await getAnyRequest(env, id)
+  if (!item) throw httpError(404, 'Обращение не найдено')
+  if (item.assigned_to !== user.id && user.role !== 'admin') throw httpError(403, 'Вы не назначены на это обращение')
+
+  const body = await requestBody(request)
+  const text = String(body.text || '').trim()
+  if (!text) throw httpError(400, 'Заметка пустая')
+  if (text.length > MAX_TEXT_LENGTH) throw httpError(400, 'Сократите заметку до 10 000 символов')
+
+  const msg = await addMessage(env, id, 'specialist', text, true)
+  return json({ message: msg }, 201)
+}
+
+async function handleSpecialistNeedData(request, env, id) {
+  const user = await specialistContext(request, env)
+  const item = await getAnyRequest(env, id)
+  if (!item) throw httpError(404, 'Обращение не найдено')
+  if (item.assigned_to !== user.id && user.role !== 'admin') throw httpError(403, 'Вы не назначены на это обращение')
+  if (item.status === 'done') throw httpError(409, 'Обращение завершено')
+
+  const body = await requestBody(request)
+  const text = String(body.text || '').trim()
+  const noteText = text || 'Для продолжения работы нужны дополнительные данные от клиента.'
+  await addMessage(env, id, 'specialist', noteText)
+  await updateRequest(env, id, { status: 'need_data', last_message_at: new Date().toISOString() })
+  return json({ request: await requestWithClientInfo(env, id) })
+}
+
+async function handleSpecialistResult(request, env, id) {
+  const user = await specialistContext(request, env)
+  const item = await getAnyRequest(env, id)
+  if (!item) throw httpError(404, 'Обращение не найдено')
+  if (item.assigned_to !== user.id && user.role !== 'admin') throw httpError(403, 'Вы не назначены на это обращение')
+  if (item.status === 'done') throw httpError(409, 'Обращение завершено')
+
+  const body = await requestBody(request)
+  const text = String(body.text || '').trim()
+  if (!text) throw httpError(400, 'Сообщение результата пусто')
+  if (text.length > MAX_TEXT_LENGTH) throw httpError(400, 'Сократите сообщение до 10 000 символов')
+
+  await addMessage(env, id, 'specialist', text)
+  await updateRequest(env, id, { status: 'result_ready', result_message: text, last_message_at: new Date().toISOString() })
+  await addMessage(env, id, 'system', 'Специалист передал результат. Ожидается подтверждение клиента.')
+  return json({ request: await requestWithClientInfo(env, id) })
+}
+
+async function handleAdminUserRole(request, env, id) {
+  await adminContext(request, env)
+  const body = await requestBody(request)
+  const role = String(body.role || '').trim()
+  if (!['user', 'admin', 'specialist'].includes(role)) throw httpError(400, 'Допустимые роли: user, admin, specialist')
+  await env.DB.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, Number(id)).run()
+  const updated = await findUserById(env, Number(id))
+  if (!updated) throw httpError(404, 'Пользователь не найден')
+  return json({ user: publicUser(updated) })
+}
+
+async function handleAdminAssign(request, env, id) {
+  await adminContext(request, env)
+  const item = await getAnyRequest(env, id)
+  if (!item) throw httpError(404, 'Обращение не найдено')
+  const body = await requestBody(request)
+  const specialistId = body.specialist_id ? Number(body.specialist_id) : null
+  if (specialistId) {
+    const specialist = await findUserById(env, specialistId)
+    if (!specialist) throw httpError(404, 'Специалист не найден')
+    if (specialist.role !== 'specialist' && specialist.role !== 'admin') throw httpError(400, 'Пользователь не является специалистом')
+    await updateRequest(env, id, { assigned_to: specialistId, status: 'in_progress', l1_taken_at: new Date().toISOString() })
+    await addMessage(env, id, 'system', `Назначлен специалист: ${specialist.name || specialist.email}.`)
+  } else {
+    await updateRequest(env, id, { assigned_to: null, status: 'waiting', l1_taken_at: null })
+    await addMessage(env, id, 'system', 'Обращение возвращено в общую очередь.')
+  }
+  return json({ request: await requestWithClientInfo(env, id) })
+}
+
 async function handleApi(request, env) {
   const url = new URL(request.url)
   const path = url.pathname.slice(API_PREFIX.length) || '/'
@@ -533,6 +763,30 @@ async function handleApi(request, env) {
   if (match && method === 'POST') return handleAdminRequestMessage(request, env, Number(match[1]))
   match = path.match(/^\/admin\/requests\/(\d+)$/)
   if (match && method === 'PATCH') return handleAdminRequestUpdate(request, env, Number(match[1]))
+
+  match = path.match(/^\/admin\/users\/(\d+)\/role$/)
+  if (match && method === 'PATCH') return handleAdminUserRole(request, env, match[1])
+
+  match = path.match(/^\/admin\/requests\/(\d+)\/assign$/)
+  if (match && method === 'POST') return handleAdminAssign(request, env, Number(match[1]))
+
+  if (method === 'GET' && path === '/specialist/queue') return handleSpecialistQueue(request, env)
+  if (method === 'GET' && path === '/specialist/my-requests') return handleSpecialistMyRequests(request, env)
+
+  match = path.match(/^\/specialist\/requests\/(\d+)$/)
+  if (match && method === 'GET') return handleSpecialistRequestDetail(request, env, Number(match[1]))
+  match = path.match(/^\/specialist\/requests\/(\d+)\/take$/)
+  if (match && method === 'POST') return handleSpecialistTake(request, env, Number(match[1]))
+  match = path.match(/^\/specialist\/requests\/(\d+)\/release$/)
+  if (match && method === 'POST') return handleSpecialistRelease(request, env, Number(match[1]))
+  match = path.match(/^\/specialist\/requests\/(\d+)\/messages$/)
+  if (match && method === 'POST') return handleSpecialistMessage(request, env, Number(match[1]))
+  match = path.match(/^\/specialist\/requests\/(\d+)\/internal-note$/)
+  if (match && method === 'POST') return handleSpecialistInternalNote(request, env, Number(match[1]))
+  match = path.match(/^\/specialist\/requests\/(\d+)\/need-data$/)
+  if (match && method === 'POST') return handleSpecialistNeedData(request, env, Number(match[1]))
+  match = path.match(/^\/specialist\/requests\/(\d+)\/result$/)
+  if (match && method === 'POST') return handleSpecialistResult(request, env, Number(match[1]))
 
   return json({ error: 'API endpoint not found' }, 404)
 }

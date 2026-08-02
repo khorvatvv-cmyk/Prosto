@@ -208,7 +208,7 @@ export default function App() {
               <RofPanel user={user} showToast={showToast} />
             )}
             {page === 'admin' && user.role === 'admin' && (
-              <AdminPanel user={user} />
+              <AdminPanel user={user} onNavigate={goTo} />
             )}
             {page === 'profile' && (
               <Profile user={user} onOpenManager={() => {}} onLogout={logout} onUpdateUser={setUser} />
@@ -264,7 +264,16 @@ export default function App() {
               <Notifications requests={requests} onOpenDetail={openDetail} onNavigate={goTo} onRefresh={handleNotificationRefresh} />
             )}
             {page === 'admin' && user?.role === 'admin' && (
-              <AdminPanel user={user} />
+              <AdminPanel user={user} onNavigate={goTo} />
+            )}
+            {page === 'specialist' && user?.role === 'admin' && (
+              <SpecialistPanel user={user} showToast={showToast} />
+            )}
+            {page === 'manager' && user?.role === 'admin' && (
+              <ManagerPanel user={user} showToast={showToast} />
+            )}
+            {page === 'rof' && user?.role === 'admin' && (
+              <RofPanel user={user} showToast={showToast} />
             )}
           </PointerGlowArea>
         </main>

@@ -1,0 +1,8 @@
+{
+  "appId": "ru.firstbit.prosto",
+  "appName": "Просто",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

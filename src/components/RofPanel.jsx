@@ -231,7 +231,7 @@ export default function RofPanel({ showToast }) {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 2, marginBottom: 20, padding: 4, background: S2, borderRadius: 10, width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: 2, marginBottom: 20, padding: 4, background: S2, borderRadius: 10, width: 'fit-content', maxWidth: '100%', overflowX: 'auto' }}>
         {[{ id: 'dashboard', label: 'Сводка' }, { id: 'clients', label: 'Клиенты' }, { id: 'l1', label: 'Очередь L1' }, { id: 'campaigns', label: 'Кампании' }].map(t => (
           <button key={t.id} onClick={() => setSection(t.id)}
             style={{ fontSize: 13, fontWeight: 500, padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: section === t.id ? INK : M, background: section === t.id ? S : 'transparent' }}>
@@ -259,12 +259,12 @@ export default function RofPanel({ showToast }) {
             ))}
           </div>
 
-          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflowX: 'auto' }}>
             <div style={{ padding: 18, borderBottom: `1px solid ${BD}`, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Users size={16} color={M} />
               <h3 style={{ fontSize: 15, fontWeight: 700, color: INK, margin: 0 }}>Менеджеры</h3>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${BD}` }}>
                   <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Имя</th>
@@ -397,7 +397,7 @@ export default function RofPanel({ showToast }) {
 
       {section === 'campaigns' && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: INK, margin: 0 }}>Кампании</h3>
             <button onClick={() => setShowCreateCampaign(!showCreateCampaign)}
               style={{ height: 38, padding: '0 16px', background: A, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -467,7 +467,7 @@ export default function RofPanel({ showToast }) {
                         <div style={{ fontSize: 13, color: M, marginTop: 4 }}>{c.subject || ''} • Автор: {c.author_name || '—'}</div>
                         {c.target_status && <div style={{ fontSize: 12, color: L, marginTop: 2 }}>Цель: {TARGET_STATUS[c.target_status] || c.target_status}</div>}
                       </div>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', padding: '3px 10px', borderRadius: 6, background: S2, color: cs.color }}>{cs.label}</span>
                         <button onClick={() => openDeliveries(c.id)} style={{ height: 32, padding: '0 12px', background: S, color: INK, border: `1px solid ${BD}`, borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                           Доставки
@@ -495,7 +495,7 @@ export default function RofPanel({ showToast }) {
               {deliveriesLoading ? (
                 <div style={{ padding: 30, textAlign: 'center', color: M }}>Загрузка доставок…</div>
               ) : (
-                <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflowX: 'auto' }}>
                   <div style={{ padding: 16, borderBottom: `1px solid ${BD}` }}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, color: INK, margin: 0 }}>Доставки ({deliveries.items.length})</h3>
                   </div>

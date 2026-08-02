@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { systemApi } from '../api.js'
 
 export default function LoginScreen({ onLogin, onRegister }) {
+  const isNativeApp = Boolean(window.Capacitor?.isNativePlatform?.())
   const [tab, setTab] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -176,6 +177,16 @@ export default function LoginScreen({ onLogin, onRegister }) {
             style={{ width: '100%', height: 46, background: S, color: INK, border: '1px solid #D4D4D8', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
             {tab === 'register' ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
           </button>
+
+          {!isNativeApp && (
+            <a href="/downloads/Prosto-client-1.0.0.apk" download
+              style={{ marginTop: 16, minHeight: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: A, borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>
+              </svg>
+              Скачать приложение для Android
+            </a>
+          )}
         </div>
       </div>
 

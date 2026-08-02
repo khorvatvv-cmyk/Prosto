@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { adminApi } from '../api.js'
 
-export default function AdminPanel() {
+export default function AdminPanel({ onNavigate }) {
   const [tab, setTab] = useState('dashboard')
   const [stats, setStats] = useState(null)
   const [users, setUsers] = useState([])
@@ -285,9 +285,26 @@ export default function AdminPanel() {
             <div style={{ fontSize: 13, color: M }}>У существующего пользователя выберите роль «РОФ» в столбце «Действие» или создайте отдельную учётную запись на вкладке «РОФ».</div>
             <button onClick={() => setTab('rofs')} style={{ marginTop: 10, height: 32, padding: '0 12px', border: 'none', borderRadius: 6, background: A, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Открыть вкладку РОФ</button>
           </div>
+
+          <div style={{ background: '#FFF0F7', border: `1px solid ${A}22`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px', color: INK }}>Тестирование рабочих мест</h3>
+            <p style={{ fontSize: 13, color: M, margin: '0 0 14px' }}>Администратор может открыть каждый АРМ без смены своей роли.</p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { id: 'specialist', label: 'Открыть АРМ L1' },
+                { id: 'manager', label: 'Открыть АРМ менеджера' },
+                { id: 'rof', label: 'Открыть АРМ РОФ' },
+              ].map(item => (
+                <button key={item.id} onClick={() => onNavigate?.(item.id)}
+                  style={{ height: 36, padding: '0 14px', border: item.id === 'rof' ? 'none' : `1px solid ${BD}`, borderRadius: 8, background: item.id === 'rof' ? A : S, color: item.id === 'rof' ? '#fff' : INK, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {roleNotice && <div style={{ fontSize: 13, color: roleNotice.startsWith('Ошибка') ? A : '#16A34A', marginBottom: 10 }}>{roleNotice}</div>}
           <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${BD}` }}>
                 <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>ID</th>
@@ -363,8 +380,8 @@ export default function AdminPanel() {
           </div>
 
           {/* Existing specialists */}
-          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${BD}` }}>
                   <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Email</th>
@@ -418,8 +435,8 @@ export default function AdminPanel() {
               </button>
             </div>
           </div>
-          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse' }}>
               <thead><tr style={{ borderBottom: `1px solid ${BD}` }}>
                 <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Email</th>
                 <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Имя</th>
@@ -443,6 +460,12 @@ export default function AdminPanel() {
       {/* === ROF === */}
       {tab === 'rofs' && (
         <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <button onClick={() => onNavigate?.('rof')}
+              style={{ height: 38, padding: '0 16px', border: 'none', borderRadius: 8, background: A, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Открыть АРМ РОФ →
+            </button>
+          </div>
           <div style={{ background: '#FFF0F7', border: `1px solid ${A}22`, borderRadius: 10, padding: 20, marginBottom: 20, maxWidth: 620 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: INK }}>Назначить существующего пользователя РОФ</h3>
             <p style={{ fontSize: 13, color: M, marginBottom: 14 }}>Выберите уже зарегистрированного пользователя. После следующего входа ему откроется только АРМ РОФ.</p>
@@ -481,8 +504,8 @@ export default function AdminPanel() {
               </button>
             </div>
           </div>
-          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse' }}>
               <thead><tr style={{ borderBottom: `1px solid ${BD}` }}>
                 <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Email</th>
                 <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>Имя</th>
@@ -566,8 +589,8 @@ export default function AdminPanel() {
               </div>
             </div>
           ) : (
-            <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${BD}` }}>
                     <th style={{ textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: L, textTransform: 'uppercase' }}>ID</th>

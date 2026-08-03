@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from './useAuth.js'
 import { notificationsApi, requestsApi } from './api.js'
 import LoginScreen from './components/LoginScreen.jsx'
@@ -21,8 +21,17 @@ import ManagerPanel from './components/ManagerPanel.jsx'
 import RofPanel from './components/RofPanel.jsx'
 import { PointerGlowArea } from './components/ui/AceternityEffects.jsx'
 import { ALLOWED_PAGES_BY_ROLE, STAFF_ROLES, homePageForRole } from './access.js'
+import { useMobileEnvironment } from './mobile/useMobileEnvironment.js'
+
+const MobileClientApp = lazy(() => import('./mobile/MobileClientApp.jsx'))
+const MobileOnboarding = lazy(() => import('./mobile/MobileOnboarding.jsx'))
+
+function MobileLoading() {
+  return <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#F7F7FA', color: 'var(--color-ink-muted)', fontSize: 14 }}>Открываем «Просто»…</div>
+}
 
 export default function App() {
+  const { isMobileClient } = useMobileEnvironment()
   const { user, setUser, loading, login, register: rawRegister, logout } = useAuth()
   const register = useCallback(async (email, password, inn, name, onProgress) => {
     const u = await rawRegister(email, password, inn, name, onProgress)
@@ -31,6 +40,7 @@ export default function App() {
   }, [rawRegister])
   const [page, setPage] = useState('dashboard')
   const [requests, setRequests] = useState([])
+  const [requestsLoading, setRequestsLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [currentRequestId, setCurrentRequestId] = useState(null)
   const [managerOpen, setManagerOpen] = useState(false)
@@ -75,11 +85,14 @@ export default function App() {
   }, [applyNotificationSummary, loadNotificationSummary])
 
   const loadRequests = useCallback(async () => {
+    setRequestsLoading(true)
     try {
       const data = await requestsApi.list()
       setRequests(data.requests || [])
     } catch (e) {
       console.error('Load requests error:', e)
+    } finally {
+      setRequestsLoading(false)
     }
   }, [])
 
@@ -165,11 +178,39 @@ export default function App() {
   }
 
   if (showOnboarding) {
+    if (user?.role === 'user' && isMobileClient) {
+      return <Suspense fallback={<MobileLoading />}><MobileOnboarding user={user} onComplete={() => setShowOnboarding(false)} onUpdateUser={setUser} /></Suspense>
+    }
     return <OnboardingProfile user={user} onComplete={() => setShowOnboarding(false)} />
   }
 
   const currentRequest = requests.find(r => r.id === currentRequestId)
   const isStaff = STAFF_ROLES.includes(user.role)
+
+  if (user.role === 'user' && isMobileClient) {
+    return (
+      <Suspense fallback={<MobileLoading />}>
+        <MobileClientApp
+          user={user}
+          setUser={setUser}
+          logout={logout}
+          page={page}
+          onNavigate={goTo}
+          requests={requests}
+          requestsLoading={requestsLoading}
+          currentRequestId={currentRequestId}
+          onOpenRequest={openDetail}
+          onSubmitRequest={submitRequest}
+          onEvaluateRequest={evaluateRequest}
+          onReloadRequests={loadRequests}
+          notificationSummary={notificationSummary}
+          onNotificationRefresh={handleNotificationRefresh}
+          showToast={showToast}
+        />
+        {toast && <Toast message={toast} />}
+      </Suspense>
+    )
+  }
 
   const renderCurrentPage = () => {
     if (page === 'dashboard' && (user.role === 'user' || user.role === 'admin')) {

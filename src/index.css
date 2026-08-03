@@ -20,9 +20,12 @@
   --font-display: "Inter", -apple-system, sans-serif;
 }
 
-* { -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
 html, body, #root { min-height: 100%; }
-body { margin: 0; }
+html { background: var(--color-bg); }
+body { margin: 0; overscroll-behavior: none; }
+button, input, textarea, select { font-family: inherit; }
+button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 ::selection { background: var(--color-accent-tint); color: var(--color-accent); }
 
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }

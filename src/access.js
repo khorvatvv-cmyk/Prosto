@@ -9,11 +9,11 @@ export const HOME_PAGE_BY_ROLE = {
 }
 
 export const ALLOWED_PAGES_BY_ROLE = {
-  user: new Set(['dashboard', 'new', 'detail', 'important', 'notifs', 'manager-chat', 'profile']),
+  user: new Set(['dashboard', 'questions', 'new', 'detail', 'important', 'notifs', 'manager-chat', 'profile']),
   manager: new Set(['manager', 'profile']),
   specialist: new Set(['specialist', 'profile']),
   rof: new Set(['rof', 'profile']),
-  admin: new Set(['dashboard', 'new', 'detail', 'important', 'notifs', 'manager-chat', 'profile', 'admin', 'specialist', 'manager', 'rof']),
+  admin: new Set(['dashboard', 'questions', 'new', 'detail', 'important', 'notifs', 'manager-chat', 'profile', 'admin', 'specialist', 'manager', 'rof']),
 }
 
 export function homePageForRole(role) {

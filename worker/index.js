@@ -56,6 +56,27 @@ function publicUser(user) {
   }
 }
 
+async function publicUserWithOrganization(env, user) {
+  const result = publicUser(user)
+  if (!user || user.role !== 'user') return result
+  const membership = await env.DB.prepare(`
+    SELECT
+      ou.membership_status,
+      o.id AS organization_id,
+      o.name AS organization_name,
+      o.service_status,
+      o.manager_id,
+      m.name AS manager_name
+    FROM organization_users ou
+    JOIN organizations o ON o.id = ou.organization_id
+    LEFT JOIN users m ON m.id = o.manager_id
+    WHERE ou.user_id = ?
+    ORDER BY CASE ou.membership_status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, ou.id DESC
+    LIMIT 1
+  `).bind(user.id).first()
+  return membership ? { ...result, ...membership } : result
+}
+
 function assistantStatus(env) {
   return isAssistantConfigured(env) ? 'configured' : 'not_configured'
 }
@@ -274,7 +295,7 @@ async function handleProfileUpdate(request, env) {
     .bind(...Object.values(updates), user.id)
     .run()
   const updated = await findUserById(env, user.id)
-  return json({ user: publicUser(updated) })
+  return json({ user: await publicUserWithOrganization(env, updated) })
 }
 
 async function handleHealth(env) {
@@ -316,7 +337,7 @@ async function handleRegister(request, env) {
   }
   const user = await findUserById(env, result.meta.last_row_id)
   if (user.role === 'user') await ensureOrganizationMembership(env, user)
-  return json({ token: await signToken(user.id, env.JWT_SECRET), user: publicUser(user) }, 201)
+  return json({ token: await signToken(user.id, env.JWT_SECRET), user: await publicUserWithOrganization(env, user) }, 201)
 }
 
 async function handleLogin(request, env) {
@@ -331,7 +352,7 @@ async function handleLogin(request, env) {
     throw httpError(401, 'Неверный email или пароль')
   }
 
-  return json({ token: await signToken(user.id, env.JWT_SECRET), user: publicUser(user) })
+  return json({ token: await signToken(user.id, env.JWT_SECRET), user: await publicUserWithOrganization(env, user) })
 }
 
 async function handleRequestsList(request, env) {
@@ -1552,7 +1573,7 @@ async function handleApi(request, env) {
   if (method === 'POST' && path === '/auth/login') return handleLogin(request, env)
   if (method === 'GET' && path === '/auth/me') {
     const user = await authenticate(request, env)
-    return json({ user: publicUser(user) })
+    return json({ user: await publicUserWithOrganization(env, user) })
   }
   if (method === 'PUT' && path === '/profile') return handleProfileUpdate(request, env)
   if (method === 'GET' && path === '/requests') return handleRequestsList(request, env)

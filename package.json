@@ -12,6 +12,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "test": "npm --prefix server test",
+    "test:frontend": "node --test --test-isolation=none src/access.test.js src/mobile/*.test.js",
     "test:access": "node --test src/access.test.js",
     "test:worker": "node --test --test-isolation=none worker/*.test.js",
     "build:android:web": "vite build --mode android",
@@ -25,10 +26,16 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "motion": "^12.43.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",

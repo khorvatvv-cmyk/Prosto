@@ -179,7 +179,7 @@ export default function LoginScreen({ onLogin, onRegister }) {
           </button>
 
           {!isNativeApp && (
-            <a href="/downloads/Prosto-client-1.0.0.apk" download
+            <a href="/downloads/Prosto-client-1.1.0.apk" download
               style={{ marginTop: 16, minHeight: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: A, borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>

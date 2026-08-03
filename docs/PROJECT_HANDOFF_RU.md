@@ -4,7 +4,8 @@
 Репозиторий: https://github.com/khorvatvv-cmyk/Prosto  
 Рабочая папка: `C:\Users\user\Desktop\Вайб\prosto-main-fix`  
 Текущая ветка: `main`  
-Последний проверенный коммит: `1459419 fix: make admin staff workspaces reliably accessible`
+Базовая точка до мобильного редизайна: `685a927 fix: stop assistant request loop`
+Отчёт о мобильном интерфейсе: `docs/MOBILE_ANDROID_REDESIGN_RU.md`
 
 ## 1. Что это за приложение
 
@@ -17,7 +18,7 @@
 - АРМ менеджера: клиенты/организации, статусы обслуживания, заявки на подтверждение пользователей, задачи, чат с клиентами, кампании/акции;
 - АРМ РОФ: общая сводка, менеджеры, клиенты, назначение/снятие менеджеров, очередь L1, кампании;
 - админ-панель: здоровье сервера, пользователи, организации, обращения, сообщения, тест ассистента, создание специалиста/менеджера/РОФ, смена ролей, быстрый вход в рабочие места;
-- Android APK для клиентов на базе Capacitor.
+- Android APK для клиентов на базе Capacitor, версия `1.1.0`, с отдельным мобильным React layout.
 
 ## 2. Архитектура
 
@@ -105,7 +106,7 @@ Android:
 - package/application id: `ru.firstbit.prosto`;
 - min SDK 24;
 - target/compile SDK 36;
-- debug APK, versionCode `1`, versionName `1.0`.
+- debug APK, versionCode `2`, versionName `1.1.0`.
 
 ## 5. Где что лежит
 
@@ -128,7 +129,7 @@ Android:
 - `render.yaml` - Render blueprint.
 - `capacitor.config.json` - Capacitor-конфиг Android.
 - `ANDROID.md` - краткая инструкция сборки APK.
-- `artifacts/Prosto-client-1.0.0.apk` - готовый debug APK для установки вручную.
+- `artifacts/Prosto-client-1.1.0.apk` - готовый debug APK с новым мобильным интерфейсом для установки вручную.
 
 ## 6. Роли и доступ
 
@@ -142,7 +143,7 @@ Android:
 
 Разрешенные страницы заданы в `src/access.js`:
 
-- клиент: `dashboard`, `new`, `detail`, `important`, `notifs`, `manager-chat`, `profile`;
+- клиент: `dashboard`, `questions`, `new`, `detail`, `important`, `notifs`, `manager-chat`, `profile`;
 - менеджер: `manager`, `profile`;
 - специалист: `specialist`, `profile`;
 - РОФ: `rof`, `profile`;
@@ -402,7 +403,7 @@ Android-приложение - это Capacitor-оболочка вокруг т
 
 Готовый APK:
 
-- `artifacts/Prosto-client-1.0.0.apk`;
+- `artifacts/Prosto-client-1.1.0.apk`;
 - размер: 4 574 331 байт;
 - SHA256: `9CEC2C8C4D396C68E24FE5C1034F1437FF21D549DE188BDE459CDA8ED0FC1847`;
 - тип: debug APK;
@@ -429,7 +430,7 @@ npm run android:apk
 
 Копия для передачи:
 
-- `artifacts/Prosto-client-1.0.0.apk`.
+- `artifacts/Prosto-client-1.1.0.apk`.
 
 Ограничения APK:
 
@@ -545,4 +546,3 @@ npm run test:access
 - Добавить monitoring/uptime checker для Cloudflare и Render.
 - Уточнить продуктовые границы РОФ: какие действия он может делать как руководитель, а какие как менеджер верхнего уровня.
 - Добавить экспорт обращений/организаций для админа и РОФ.
-

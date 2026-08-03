@@ -15,4 +15,13 @@ export default defineConfig(({ mode }) => ({
     },
   ].filter(Boolean),
   base: '/',
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://prosto-support.bit-support.workers.dev',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
 }))

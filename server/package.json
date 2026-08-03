@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "node --test"
+    "test": "node --test --test-isolation=none"
   },
   "engines": {
     "node": ">=22.22.0 <25"

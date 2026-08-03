@@ -44,6 +44,9 @@ async function api(path, options = {}, config = {}) {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
+        if (res.status === 401 && token) {
+          window.dispatchEvent(new CustomEvent('prosto:auth-expired'))
+        }
         throw new ApiError(data.error || `Ошибка ${res.status}`, {
           status: res.status,
           code: 'http_error',

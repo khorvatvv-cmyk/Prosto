@@ -35,6 +35,15 @@ export function useAuth() {
     }
   }, [])
 
+  useEffect(() => {
+    const handleExpired = () => {
+      localStorage.removeItem('prosto_token')
+      setUser(null)
+    }
+    window.addEventListener('prosto:auth-expired', handleExpired)
+    return () => window.removeEventListener('prosto:auth-expired', handleExpired)
+  }, [])
+
   const login = useCallback(async (email, password, onProgress) => {
     const data = await authApi.login(email.trim(), password, onProgress)
     localStorage.setItem('prosto_token', data.token)

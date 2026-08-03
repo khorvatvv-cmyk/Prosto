@@ -30,6 +30,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const [sending, setSending] = useState(false)
   const [requestState, setRequestState] = useState(request)
   const [waitingAssistant, setWaitingAssistant] = useState(false)
+  const waitingAssistantRef = useRef(false)
   const assistantRequested = useRef(false)
   const showToastRef = useRef(showToast)
   showToastRef.current = showToast
@@ -42,6 +43,11 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
   const INK = '#18181B', M = '#6B6B70', L = '#A0A0A5'
   const S = '#FFFFFF', S2 = '#F4F4F5', BD = '#E4E4E7'
   const BG = '#FAFAFA'
+
+  const setAssistantWaiting = useCallback((value) => {
+    waitingAssistantRef.current = value
+    setWaitingAssistant(value)
+  }, [])
 
   const loadMessages = useCallback(async () => {
     try {
@@ -97,26 +103,28 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
       const isL1Active = newRequest?.level === 'l1' && newRequest?.status !== 'done'
       const isDone = newRequest?.status === 'done'
 
-      if (isL0Open && !hasAnswer && !assistantRequested.current) {
+      if (isL0Open && !hasAnswer && !assistantRequested.current && !waitingAssistantRef.current) {
         assistantRequested.current = true
-        setWaitingAssistant(true)
+        setAssistantWaiting(true)
         try {
           const answer = await requestsApi.requestAssistant(request.id)
           if (answer.message) {
             setMessages(prev => [...prev, answer.message])
           }
           if (answer.request) setRequestState(answer.request)
+          if (answer.message) setPolling(answer.request?.level === 'l1' && answer.request?.status !== 'done')
         } catch (error) {
           console.error('Assistant request error:', error)
           showToastRef.current('Ассистент не ответил. Можно повторить запрос или подключить специалиста.')
+          setPolling(false)
         } finally {
-          setWaitingAssistant(false)
+          setAssistantWaiting(false)
         }
       }
 
       if (isDone) {
         setPolling(false)
-      } else if (isL0Open && hasAnswer && !waitingAssistant) {
+      } else if (isL0Open && hasAnswer && !waitingAssistantRef.current) {
         setPolling(false)
       } else if (isL1Active) {
         setPolling(true)
@@ -126,13 +134,14 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     } finally {
       setLoading(false)
     }
-  }, [request.id, waitingAssistant])
+  }, [request.id, setAssistantWaiting])
 
   useEffect(() => {
     setLoading(true)
     setPolling(true)
     setMessages([])
     setRequestState(request)
+    waitingAssistantRef.current = false
     setWaitingAssistant(false)
     assistantRequested.current = false
     prevMsgCount.current = 0
@@ -152,7 +161,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
     if (!text || sending || waitingAssistant) return
     setSending(true)
     setInput('')
-    setWaitingAssistant(true)
+    setAssistantWaiting(true)
     try {
       const data = await requestsApi.sendMessage(activeRequest.id, text)
       if (data.message) {
@@ -165,7 +174,7 @@ export default function ChatDetail({ request, onBack, onOpenManager, onEvaluate,
       showToast(`Ошибка отправки: ${e.message}`)
     } finally {
       setSending(false)
-      setWaitingAssistant(false)
+      setAssistantWaiting(false)
       if (activeRequest.level === 'l1') setPolling(true)
     }
   }

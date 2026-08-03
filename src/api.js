@@ -177,7 +177,7 @@ export const requestsApi = {
   requestAssistant: (id) =>
     api(`/requests/${id}/assistant`, { method: 'POST' }, { maxAttempts: 1, timeoutMs: 90000 }),
   sendMessage: (id, text) =>
-    api(`/requests/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }) }),
+    api(`/requests/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }) }, { maxAttempts: 1, timeoutMs: 90000 }),
   evaluate: (id, helped) =>
     api(`/requests/${id}/evaluate`, { method: 'POST', body: JSON.stringify({ helped }) }),
   messageManager: (text) =>

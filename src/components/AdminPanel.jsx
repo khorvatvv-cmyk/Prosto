@@ -182,6 +182,25 @@ export default function AdminPanel({ onNavigate }) {
     }
   }
 
+  const workspaceSwitcher = (
+    <div style={{ background: '#FFF0F7', border: `1px solid ${A}22`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
+      <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px', color: INK }}>Открыть рабочее место</h3>
+      <p style={{ fontSize: 13, color: M, margin: '0 0 14px' }}>Администратор открывает АРМ с полными административными правами, без смены своей роли.</p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {[
+          { id: 'specialist', label: 'АРМ специалиста L1' },
+          { id: 'manager', label: 'АРМ менеджера' },
+          { id: 'rof', label: 'АРМ РОФ' },
+        ].map(item => (
+          <button key={item.id} type="button" onClick={() => onNavigate(item.id)}
+            style={{ height: 38, padding: '0 14px', border: item.id === 'rof' ? 'none' : `1px solid ${BD}`, borderRadius: 8, background: item.id === 'rof' ? A : S, color: item.id === 'rof' ? '#fff' : INK, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ animation: 'fadeUp .4s ease both' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -208,6 +227,7 @@ export default function AdminPanel({ onNavigate }) {
       {/* === DASHBOARD === */}
       {tab === 'dashboard' && stats && (
         <div>
+          {workspaceSwitcher}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
             {[
               { label: 'Пользователи', value: stats.users, color: INK },
@@ -286,22 +306,7 @@ export default function AdminPanel({ onNavigate }) {
             <button onClick={() => setTab('rofs')} style={{ marginTop: 10, height: 32, padding: '0 12px', border: 'none', borderRadius: 6, background: A, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Открыть вкладку РОФ</button>
           </div>
 
-          <div style={{ background: '#FFF0F7', border: `1px solid ${A}22`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px', color: INK }}>Тестирование рабочих мест</h3>
-            <p style={{ fontSize: 13, color: M, margin: '0 0 14px' }}>Администратор может открыть каждый АРМ без смены своей роли.</p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[
-                { id: 'specialist', label: 'Открыть АРМ L1' },
-                { id: 'manager', label: 'Открыть АРМ менеджера' },
-                { id: 'rof', label: 'Открыть АРМ РОФ' },
-              ].map(item => (
-                <button key={item.id} onClick={() => onNavigate?.(item.id)}
-                  style={{ height: 36, padding: '0 14px', border: item.id === 'rof' ? 'none' : `1px solid ${BD}`, borderRadius: 8, background: item.id === 'rof' ? A : S, color: item.id === 'rof' ? '#fff' : INK, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {workspaceSwitcher}
           {roleNotice && <div style={{ fontSize: 13, color: roleNotice.startsWith('Ошибка') ? A : '#16A34A', marginBottom: 10 }}>{roleNotice}</div>}
           <div style={{ background: S, border: `1px solid ${BD}`, borderRadius: 10, overflowX: 'auto' }}>
           <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse' }}>

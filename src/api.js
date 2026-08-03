@@ -1,4 +1,6 @@
-const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
+const PRIMARY_API_URL = 'https://prosto-support.bit-support.workers.dev/api'
+const runtimeApiUrl = window.location.hostname.endsWith('.onrender.com') ? PRIMARY_API_URL : '/api'
+const API_URL = (import.meta.env.VITE_API_URL || runtimeApiUrl).replace(/\/$/, '')
 
 export class ApiError extends Error {
   constructor(message, { status = 0, code = 'request_failed' } = {}) {

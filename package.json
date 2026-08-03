@@ -12,6 +12,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "test": "npm --prefix server test",
+    "test:access": "node --test src/access.test.js",
     "test:worker": "node --test --test-isolation=none worker/*.test.js",
     "build:android:web": "vite build --mode android",
     "android:sync": "npm run build:android:web && cap sync android",

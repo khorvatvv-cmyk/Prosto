@@ -20,28 +20,7 @@ import SpecialistPanel from './components/SpecialistPanel.jsx'
 import ManagerPanel from './components/ManagerPanel.jsx'
 import RofPanel from './components/RofPanel.jsx'
 import { PointerGlowArea } from './components/ui/AceternityEffects.jsx'
-
-const STAFF_ROLES = ['manager', 'rof', 'specialist']
-
-const HOME_PAGE_BY_ROLE = {
-  user: 'dashboard',
-  manager: 'manager',
-  specialist: 'specialist',
-  rof: 'rof',
-  admin: 'admin',
-}
-
-const ALLOWED_PAGES_BY_ROLE = {
-  user: new Set(['dashboard', 'new', 'detail', 'important', 'notifs', 'manager-chat', 'profile']),
-  manager: new Set(['manager', 'profile']),
-  specialist: new Set(['specialist', 'profile']),
-  rof: new Set(['rof', 'profile']),
-  admin: new Set(['dashboard', 'new', 'detail', 'important', 'notifs', 'manager-chat', 'profile', 'admin', 'specialist', 'manager', 'rof']),
-}
-
-function homePageForRole(role) {
-  return HOME_PAGE_BY_ROLE[role] || 'dashboard'
-}
+import { ALLOWED_PAGES_BY_ROLE, STAFF_ROLES, homePageForRole } from './access.js'
 
 export default function App() {
   const { user, setUser, loading, login, register: rawRegister, logout } = useAuth()
@@ -192,27 +171,79 @@ export default function App() {
   const currentRequest = requests.find(r => r.id === currentRequestId)
   const isStaff = STAFF_ROLES.includes(user.role)
 
+  const renderCurrentPage = () => {
+    if (page === 'dashboard' && (user.role === 'user' || user.role === 'admin')) {
+      return (
+        <Dashboard
+          requests={requests}
+          filter={filter}
+          onFilterChange={setFilter}
+          onOpenDetail={openDetail}
+          onNavigate={goTo}
+          user={user}
+        />
+      )
+    }
+    if (page === 'new' && (user.role === 'user' || user.role === 'admin')) {
+      return <NewRequest onSubmit={submitRequest} onCancel={() => goTo('dashboard')} />
+    }
+    if (page === 'detail' && currentRequestId && (user.role === 'user' || user.role === 'admin')) {
+      return (
+        <ChatDetail
+          request={currentRequest}
+          onBack={() => goTo('dashboard')}
+          onOpenManager={() => goTo('manager-chat')}
+          onEvaluate={evaluateRequest}
+          onNavigate={goTo}
+          showToast={showToast}
+        />
+      )
+    }
+    if (page === 'important' && (user.role === 'user' || user.role === 'admin')) {
+      return <Important showToast={showToast} onNavigate={goTo} />
+    }
+    if (page === 'manager-chat' && (user.role === 'user' || user.role === 'admin')) {
+      return <ClientManagerChat user={user} showToast={showToast} />
+    }
+    if (page === 'notifs' && (user.role === 'user' || user.role === 'admin')) {
+      return <Notifications requests={requests} onOpenDetail={openDetail} onNavigate={goTo} onRefresh={handleNotificationRefresh} />
+    }
+    if (page === 'profile') {
+      return <Profile user={user} onOpenManager={() => goTo('manager-chat')} onLogout={logout} onUpdateUser={setUser} />
+    }
+    if (page === 'admin' && user.role === 'admin') {
+      return <AdminPanel user={user} onNavigate={goTo} />
+    }
+    if (page === 'specialist' && (user.role === 'specialist' || user.role === 'admin')) {
+      return <SpecialistPanel user={user} showToast={showToast} />
+    }
+    if (page === 'manager' && (user.role === 'manager' || user.role === 'rof' || user.role === 'admin')) {
+      return <ManagerPanel user={user} showToast={showToast} />
+    }
+    if (page === 'rof' && (user.role === 'rof' || user.role === 'admin')) {
+      return <RofPanel user={user} showToast={showToast} />
+    }
+
+    return (
+      <div style={{ maxWidth: 560, margin: '64px auto', padding: 28, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, textAlign: 'center' }}>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20, color: 'var(--color-ink)' }}>Раздел не удалось открыть</h2>
+        <p style={{ margin: '0 0 18px', fontSize: 14, color: 'var(--color-ink-muted)' }}>Вернитесь на главное рабочее место и повторите переход.</p>
+        <button onClick={() => goTo(homePageForRole(user.role))} style={{ height: 40, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--color-accent)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+          Вернуться
+        </button>
+      </div>
+    )
+  }
+
+  const currentPageContent = renderCurrentPage()
+
   if (isStaff) {
     return (
       <div className="h-screen flex flex-col bg-[var(--color-bg)]">
         <Header onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} user={user} notificationSummary={notificationSummary} />
         <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-8 pb-20" style={{ scrollBehavior: 'smooth' }}>
           <PointerGlowArea className="max-w-[1200px] mx-auto">
-            {page === 'specialist' && (user.role === 'specialist' || user.role === 'admin') && (
-              <SpecialistPanel user={user} showToast={showToast} />
-            )}
-            {page === 'manager' && (user.role === 'manager' || user.role === 'rof' || user.role === 'admin') && (
-              <ManagerPanel user={user} showToast={showToast} />
-            )}
-            {page === 'rof' && (user.role === 'rof' || user.role === 'admin') && (
-              <RofPanel user={user} showToast={showToast} />
-            )}
-            {page === 'admin' && user.role === 'admin' && (
-              <AdminPanel user={user} onNavigate={goTo} />
-            )}
-            {page === 'profile' && (
-              <Profile user={user} onOpenManager={() => {}} onLogout={logout} onUpdateUser={setUser} />
-            )}
+            {currentPageContent}
           </PointerGlowArea>
         </main>
         <MobileTabbar onNavigate={goTo} page={page} user={user} notificationSummary={notificationSummary} />
@@ -228,53 +259,7 @@ export default function App() {
         <Sidebar onNavigate={goTo} onOpenManager={() => setManagerOpen(true)} page={page} onLogout={logout} user={user} notificationSummary={notificationSummary} />
         <main className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-8 pb-20" style={{ scrollBehavior: 'smooth' }}>
           <PointerGlowArea className="max-w-[1060px] mx-auto">
-            {page === 'dashboard' && (
-              <Dashboard
-                requests={requests}
-                filter={filter}
-                onFilterChange={setFilter}
-                onOpenDetail={openDetail}
-                onNavigate={goTo}
-                user={user}
-              />
-            )}
-            {page === 'new' && (
-              <NewRequest onSubmit={submitRequest} onCancel={() => goTo('dashboard')} />
-            )}
-            {page === 'detail' && currentRequestId && (
-              <ChatDetail
-                request={currentRequest}
-                onBack={() => goTo('dashboard')}
-                onOpenManager={() => goTo('manager-chat')}
-                onEvaluate={evaluateRequest}
-                onNavigate={goTo}
-                showToast={showToast}
-              />
-            )}
-            {page === 'important' && (
-              <Important showToast={showToast} onNavigate={goTo} />
-            )}
-            {page === 'manager-chat' && (
-              <ClientManagerChat user={user} showToast={showToast} />
-            )}
-            {page === 'profile' && (
-              <Profile user={user} onOpenManager={() => goTo('manager-chat')} onLogout={logout} onUpdateUser={setUser} />
-            )}
-            {page === 'notifs' && (
-              <Notifications requests={requests} onOpenDetail={openDetail} onNavigate={goTo} onRefresh={handleNotificationRefresh} />
-            )}
-            {page === 'admin' && user?.role === 'admin' && (
-              <AdminPanel user={user} onNavigate={goTo} />
-            )}
-            {page === 'specialist' && user?.role === 'admin' && (
-              <SpecialistPanel user={user} showToast={showToast} />
-            )}
-            {page === 'manager' && user?.role === 'admin' && (
-              <ManagerPanel user={user} showToast={showToast} />
-            )}
-            {page === 'rof' && user?.role === 'admin' && (
-              <RofPanel user={user} showToast={showToast} />
-            )}
+            {currentPageContent}
           </PointerGlowArea>
         </main>
       </div>
